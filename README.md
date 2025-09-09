@@ -1,5 +1,3 @@
-Here’s a simple README.md you can drop in at the root of your repo (realtime-categories/README.md).
-
 # LiveCategories 🎮
 
 A real-time multiplayer game where two players compete to name items in a category under time pressure.  
