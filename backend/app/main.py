@@ -4,8 +4,20 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional
 import json, time, asyncio
+from .api_service import api_service
 
 app = FastAPI(title="Realtime Categories (MVP)")
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize API service on startup"""
+    print("Starting API service...")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up API service on shutdown"""
+    await api_service.close()
+    print("API service closed.")
 
 # ----- Game types
 
@@ -82,13 +94,25 @@ def ensure_game(game_id: str) -> Game:
         ROOMS[game_id] = []
     return GAMES[game_id]
 
-def load_category(name: str) -> Set[str]:
-    # MVP: only fruits. add more files later.
-    if name == "fruits":
-        import pathlib
-        p = pathlib.Path(__file__).parent / "categories" / "fruits.json"
-        return set(json.loads(p.read_text()))
-    return set()
+async def load_category(name: str) -> Set[str]:
+    """Load category items from API or fallback to static files"""
+    try:
+        if name == "programming_languages":
+            return await api_service.get_programming_languages()
+        elif name == "countries":
+            return await api_service.get_countries()
+        elif name == "animals":
+            return await api_service.get_animals()
+        elif name == "fruits":
+            # Keep fruits as static for now
+            import pathlib
+            p = pathlib.Path(__file__).parent / "categories" / "fruits.json"
+            return set(json.loads(p.read_text()))
+        else:
+            return set()
+    except Exception as e:
+        print(f"Error loading category {name}: {e}")
+        return set()
 
 def start_tick(game_id: str):
     if game_id in TICK_TASKS:
@@ -145,8 +169,8 @@ async def tick_loop(game_id: str):
                     g.high_bid = 0
                     g.high_bidder_id = None
                     g.lister_id = None
-                    g.category = "fruits"  # MVP fixed category
-                    g.category_items = load_category(g.category)
+                    g.category = "programming_languages"  # Use API-driven category
+                    g.category_items = await load_category(g.category)
                     g.phase_ends_at = now() + 15  # 15s bidding
                 await broadcast(game_id, {"type": "state_update", "game": game_snapshot(g)})
         await asyncio.sleep(0.2)
@@ -175,8 +199,8 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
     # If two players present, go to bidding for round 1
     if g.phase == Phase.LOBBY and len(g.players) == 2:
         g.phase = Phase.BIDDING
-        g.category = "fruits"
-        g.category_items = load_category(g.category)
+        g.category = "programming_languages"
+        g.category_items = await load_category(g.category)
         g.phase_ends_at = now() + 15
         start_tick(game_id)
 
@@ -245,4 +269,37 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
 
 @app.get("/", response_class=HTMLResponse)
 def root():
-    return "<h3>Backend OK.</h3><p>WebSocket at <code>/ws/{gameId}?name=YourName</code></p>"
+    return """
+    <h3>LiveCategories Backend API</h3>
+    <p>WebSocket at <code>/ws/{gameId}?name=YourName</code></p>
+    <p>Available endpoints:</p>
+    <ul>
+        <li><code>GET /categories</code> - List available categories</li>
+        <li><code>GET /categories/{name}</code> - Get items for a specific category</li>
+    </ul>
+    """
+
+@app.get("/categories")
+async def get_categories():
+    """Get list of available categories"""
+    return {
+        "categories": [
+            {"name": "programming_languages", "display_name": "Programming Languages", "description": "Programming languages from GitHub API"},
+            {"name": "countries", "display_name": "Countries", "description": "World countries from REST Countries API"},
+            {"name": "animals", "display_name": "Animals", "description": "Animal names from API"},
+            {"name": "fruits", "display_name": "Fruits", "description": "Fruit names from static file"}
+        ]
+    }
+
+@app.get("/categories/{category_name}")
+async def get_category_items(category_name: str):
+    """Get items for a specific category"""
+    try:
+        items = await load_category(category_name)
+        return {
+            "category": category_name,
+            "items": list(items),
+            "count": len(items)
+        }
+    except Exception as e:
+        return {"error": f"Failed to load category {category_name}: {str(e)}"}

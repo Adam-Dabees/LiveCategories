@@ -1,157 +1,247 @@
-"use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+'use client';
 
-export default function Home() {
-  const [name, setName] = useState("");
-  const [gameId, setGameId] = useState("demo");
-  const [playerId, setPlayerId] = useState(null);
-  const [ws, setWs] = useState(null);
-  const [game, setGame] = useState(null);
-  const inputRef = useRef(null);
-  const [bid, setBid] = useState(1);
-  const [item, setItem] = useState("");
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
+import { gameAPI } from '../lib/auth';
+import { motion } from 'framer-motion';
+import { 
+  Code, 
+  Globe, 
+  Heart, 
+  Apple, 
+  Play, 
+  Users, 
+  Search,
+  Plus,
+  Hash
+} from 'lucide-react';
 
-  const connected = !!ws && ws.readyState === 1;
+const categoryIcons = {
+  programming_languages: Code,
+  countries: Globe,
+  animals: Heart,
+  fruits: Apple,
+};
+
+const categoryColors = {
+  programming_languages: 'from-blue-500 to-blue-600',
+  countries: 'from-green-500 to-green-600',
+  animals: 'from-pink-500 to-pink-600',
+  fruits: 'from-orange-500 to-orange-600',
+};
+
+export default function HomePage() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showLobbyOptions, setShowLobbyOptions] = useState(false);
+  const [lobbyCode, setLobbyCode] = useState('');
+  
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
-    return () => {
-      if (ws) ws.close();
-    };
-  }, [ws]);
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+    
+    if (user) {
+      loadCategories();
+    }
+  }, [user, authLoading, router]);
 
-  function connect() {
-    const url = `ws://localhost:8001/ws/${encodeURIComponent(gameId)}?name=${encodeURIComponent(name || "Player")}`;
-    const socket = new WebSocket(url);
-    socket.onopen = () => console.log("WS connected");
-    socket.onclose = () => console.log("WS closed");
-    socket.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "joined") {
-        setPlayerId(msg.playerId);
-        setGame(msg.game);
-      } else if (msg.type === "state_update") {
-        setGame(msg.game);
-      } else if (msg.type === "bid_update") {
-        setGame(msg.game);
-      } else if (msg.type === "listing_update") {
-        setGame(msg.game);
-      } else if (msg.type === "round_result") {
-        setGame(msg.game);
-      }
-    };
-    setWs(socket);
+  const loadCategories = async () => {
+    try {
+      const response = await gameAPI.getCategories();
+      setCategories(response.categories);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    setShowLobbyOptions(true);
+  };
+
+  const handleCreateLobby = () => {
+    if (selectedCategory) {
+      router.push(`/lobby?category=${selectedCategory.name}&action=create`);
+    }
+  };
+
+  const handleJoinRandom = () => {
+    if (selectedCategory) {
+      router.push(`/lobby?category=${selectedCategory.name}&action=join`);
+    }
+  };
+
+  const handleJoinWithCode = () => {
+    if (selectedCategory && lobbyCode.trim()) {
+      router.push(`/lobby?category=${selectedCategory.name}&code=${lobbyCode.trim()}`);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full"
+        />
+      </div>
+    );
   }
 
-  function placeBid() {
-    if (!ws) return;
-    ws.send(JSON.stringify({ type: "place_bid", n: Number(bid) || 1 }));
+  if (!user) {
+    return null;
   }
-  function passBid() {
-    if (!ws) return;
-    ws.send(JSON.stringify({ type: "pass" }));
-  }
-  function submitItem() {
-    if (!ws) return;
-    const text = item.trim();
-    if (!text) return;
-    ws.send(JSON.stringify({ type: "submit_item", text }));
-    setItem("");
-    inputRef.current?.focus();
-  }
-
-  const me = useMemo(() => (playerId && game ? game.players[playerId] : null), [playerId, game]);
-  const others = useMemo(() => {
-    if (!game || !playerId) return [];
-    return Object.values(game.players).filter((p) => p.id !== playerId);
-  }, [game, playerId]);
-
-  const remainingMs = Math.max(0, Math.floor(((game?.phaseEndsAt ?? 0) * 1000) - Date.now()));
-  const remaining = `${Math.ceil(remainingMs / 1000)}s`;
 
   return (
-    <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "ui-sans-serif, system-ui" }}>
-      <h1>⚡ Realtime Categories (MVP)</h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-center"
+          >
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+              Choose Your Category
+            </h1>
+            <p className="text-xl md:text-2xl text-primary-100 mb-8">
+              Test your knowledge in real-time battles!
+            </p>
+          </motion.div>
+        </div>
+      </div>
 
-      {!connected && (
-        <section style={{ margin: "16px 0", padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value)} />
-            <button onClick={connect} disabled={!name || !gameId}>Join</button>
-          </div>
-          <p style={{ marginTop: 8, color: "#666" }}>
-            Open this page in a second tab, use a different name, same Game ID.
-          </p>
-        </section>
-      )}
+      {/* Categories Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          {categories.map((category, index) => {
+            const IconComponent = categoryIcons[category.name] || Code;
+            const colorClass = categoryColors[category.name] || 'from-gray-500 to-gray-600';
+            
+            return (
+              <motion.div
+                key={category.name}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleCategorySelect(category)}
+                className="card p-6 cursor-pointer hover:shadow-xl transition-all duration-300 group"
+              >
+                <div className={`w-16 h-16 bg-gradient-to-r ${colorClass} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                  <IconComponent className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  {category.display_name}
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  {category.description}
+                </p>
+                <div className="mt-4 flex items-center text-primary-600 group-hover:text-primary-700">
+                  <Play className="w-4 h-4 mr-2" />
+                  <span className="text-sm font-medium">Start Playing</span>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </div>
 
-      {connected && game && (
-        <section style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              <strong>Game:</strong> {game.id} • <strong>Round:</strong> {game.round}/{game.bestOf} •{" "}
-              <strong>Phase:</strong> {game.phase} • <strong>Timer:</strong> {remaining}
-            </div>
-            <div>
-              <strong>Category:</strong> {game.category ?? "—"}
-            </div>
-          </div>
-
-          <hr style={{ margin: "12px 0" }} />
-
-          <div style={{ display: "flex", gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <h3>Me</h3>
-              <div>{me?.name ?? "—"}</div>
-              <div>Score: {game.scores?.[playerId] ?? 0}</div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <h3>Opponent</h3>
-              <div>{others[0]?.name ?? "—"}</div>
-              <div>Score: {others[0] ? (game.scores?.[others[0].id] ?? 0) : 0}</div>
-            </div>
-          </div>
-
-          {game.phase === "bidding" && (
-            <div style={{ marginTop: 12 }}>
-              <p>
-                High Bid: <strong>{game.highBid}</strong> {game.highBidderId === playerId ? "(You)" : ""}
+      {/* Lobby Options Modal */}
+      {showLobbyOptions && selectedCategory && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowLobbyOptions(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-xl p-8 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                {selectedCategory.display_name}
+              </h3>
+              <p className="text-gray-600">
+                How would you like to play?
               </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input type="number" min={1} value={bid} onChange={(e) => setBid(e.target.value)} />
-                <button onClick={placeBid}>Place / Raise</button>
-                <button onClick={passBid}>Pass</button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Create New Lobby */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleCreateLobby}
+                className="w-full p-4 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="font-medium">Create New Lobby</span>
+              </motion.button>
+
+              {/* Join Random */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleJoinRandom}
+                className="w-full p-4 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+              >
+                <Search className="w-5 h-5" />
+                <span className="font-medium">Join Random Game</span>
+              </motion.button>
+
+              {/* Join with Code */}
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={lobbyCode}
+                  onChange={(e) => setLobbyCode(e.target.value)}
+                  placeholder="Enter lobby code"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleJoinWithCode}
+                  disabled={!lobbyCode.trim()}
+                  className="w-full p-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                >
+                  <Hash className="w-5 h-5" />
+                  <span className="font-medium">Join with Code</span>
+                </motion.button>
               </div>
             </div>
-          )}
 
-          {game.phase === "listing" && (
-            <div style={{ marginTop: 12 }}>
-              <p>
-                Lister: <strong>{game.listerId === playerId ? "You" : others[0]?.name}</strong> • Bid:{" "}
-                <strong>{game.highBid}</strong> • Count: <strong>{game.listCount}</strong>
-              </p>
-              {game.listerId === playerId ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    ref={inputRef}
-                    placeholder={`Type a ${game.category?.slice(0, -1) ?? "item"} and press Enter`}
-                    value={item}
-                    onChange={(e) => setItem(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitItem()}
-                  />
-                  <button onClick={submitItem}>Submit</button>
-                </div>
-              ) : (
-                <p>Waiting for lister…</p>
-              )}
-            </div>
-          )}
-
-          {game.phase === "summary" && <p style={{ marginTop: 12 }}>Round over. Next round starting…</p>}
-          {game.phase === "ended" && <p style={{ marginTop: 12 }}><strong>Match ended.</strong></p>}
-        </section>
+            <button
+              onClick={() => setShowLobbyOptions(false)}
+              className="w-full mt-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        </motion.div>
       )}
-    </main>
+    </div>
   );
 }
