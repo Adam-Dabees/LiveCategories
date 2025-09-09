@@ -306,6 +306,36 @@ class DatabaseService:
             })
         
         return history
+    
+    # Lobby management operations
+    def get_available_lobbies(self, category: str = None) -> List[Game]:
+        """Get lobbies that are waiting for players"""
+        query = self.db.query(Game).filter(
+            and_(
+                Game.phase == "lobby",
+                Game.phase_ends_at.is_(None)  # Not in progress
+            )
+        )
+        
+        if category:
+            query = query.filter(Game.category == category)
+        
+        return query.all()
+    
+    def get_lobby_with_players(self, category: str = None) -> Optional[Game]:
+        """Get a lobby that already has at least one player"""
+        lobbies = self.get_available_lobbies(category)
+        
+        for lobby in lobbies:
+            players = self.get_players(lobby.id)
+            if len(players) > 0 and len(players) < 2:  # Has players but not full
+                return lobby
+        
+        return None
+    
+    def get_game_players(self, game_id: str) -> List[Player]:
+        """Alias for get_players for compatibility"""
+        return self.get_players(game_id)
 
 # Global instance
 db_service = DatabaseService()

@@ -82,6 +82,21 @@ export const gameAPI = {
     const response = await api.get(`/lobby/${lobbyCode}`);
     return response.data;
   },
+
+  createLobby: async (category, bestOf = 5) => {
+    const response = await api.post(`/lobby/create?category=${category}&best_of=${bestOf}`);
+    return response.data;
+  },
+
+  joinRandomLobby: async (category) => {
+    const response = await api.post(`/lobby/join-random?category=${category}`);
+    return response.data;
+  },
+
+  getAvailableLobbies: async (category) => {
+    const response = await api.get(`/lobby/available/${category}`);
+    return response.data;
+  },
 };
 
 export default api;

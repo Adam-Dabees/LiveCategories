@@ -68,21 +68,57 @@ export default function HomePage() {
     setShowLobbyOptions(true);
   };
 
-  const handleCreateLobby = () => {
+  const handleCreateLobby = async () => {
     if (selectedCategory) {
-      router.push(`/lobby?category=${selectedCategory.name}&action=create`);
+      try {
+        setLoading(true);
+        const result = await gameAPI.createLobby(selectedCategory.name);
+        if (result.error) {
+          console.error('Failed to create lobby:', result.error);
+          return;
+        }
+        router.push(`/lobby?gameId=${result.game_id}&lobbyCode=${result.lobby_code}&category=${selectedCategory.name}`);
+      } catch (error) {
+        console.error('Failed to create lobby:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleJoinRandom = () => {
+  const handleJoinRandom = async () => {
     if (selectedCategory) {
-      router.push(`/lobby?category=${selectedCategory.name}&action=join`);
+      try {
+        setLoading(true);
+        const result = await gameAPI.joinRandomLobby(selectedCategory.name);
+        if (result.error) {
+          console.error('Failed to join lobby:', result.error);
+          return;
+        }
+        router.push(`/lobby?gameId=${result.game_id}&lobbyCode=${result.lobby_code}&category=${selectedCategory.name}&action=${result.action}`);
+      } catch (error) {
+        console.error('Failed to join lobby:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleJoinWithCode = () => {
+  const handleJoinWithCode = async () => {
     if (selectedCategory && lobbyCode.trim()) {
-      router.push(`/lobby?category=${selectedCategory.name}&code=${lobbyCode.trim()}`);
+      try {
+        setLoading(true);
+        const result = await gameAPI.getGameByLobbyCode(lobbyCode.trim());
+        if (result.error) {
+          console.error('Lobby not found:', result.error);
+          return;
+        }
+        router.push(`/lobby?gameId=${result.game_id}&lobbyCode=${result.lobby_code}&category=${result.category}`);
+      } catch (error) {
+        console.error('Failed to join lobby:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
