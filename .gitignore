@@ -1,0 +1,17 @@
+cat > .gitignore <<'EOF'
+# Node
+node_modules/
+.next/
+pnpm-lock.yaml
+yarn.lock
+npm-debug.log*
+
+# Python
+venv/
+.env
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+EOF

@@ -1,0 +1,10 @@
+{
+  "name": "realtime-categories",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -s first \"cd backend && venv/bin/uvicorn app.main:app --reload --port 8001\" \"cd frontend && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
