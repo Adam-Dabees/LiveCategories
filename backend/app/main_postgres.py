@@ -184,24 +184,26 @@ async def tick_loop(game_id: str):
                 
             elif game.phase == Phase.SUMMARY:
                 # next round or end match
-                target = (game.best_of // 2) + 1
+                target = 1  # For single round games, end after 1 round
                 scores = db_service.get_all_scores(game_id)
                 
                 if any(score >= target for score in scores.values()):
                     db_service.update_game(game_id, phase=Phase.ENDED, phase_ends_at=None)
                 else:
+                    # Keep the same category for the next round
+                    category = game.category or "programming_languages"
                     db_service.update_game(game_id,
                         round_number=game.round_number + 1,
                         phase=Phase.BIDDING,
                         high_bid=0,
                         high_bidder_id=None,
                         lister_id=None,
-                        category="programming_languages",
+                        category=category,
                         phase_ends_at=datetime.fromtimestamp(now() + settings.BIDDING_TIME_SECONDS)
                     )
                     
                     # Load category items
-                    category_items = await load_category("programming_languages")
+                    category_items = await load_category(category)
                     # Note: We don't store category_items in DB, they're loaded on demand
                 
                 players = db_service.get_players(game_id)
@@ -221,17 +223,35 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
     
     try:
         game = ensure_game(game_id)
-        ROOMS[game_id].append(websocket)
+        
+        # Prevent duplicate WebSocket connections
+        if game_id not in ROOMS:
+            ROOMS[game_id] = []
+        
+        # Check if this WebSocket is already in the room
+        if websocket not in ROOMS[game_id]:
+            ROOMS[game_id].append(websocket)
 
         # Register player in database
-        # Generate unique player ID for this game session
-        import uuid
-        player_id = f"{player_id}_{game_id}_{uuid.uuid4().hex[:8]}"
+        # Use a consistent player ID based on user ID and game
+        import hashlib
+        consistent_player_id = f"{player_id}_{game_id}_{hashlib.md5(f'{player_id}_{game_id}'.encode()).hexdigest()[:8]}"
         
-        player = db_service.add_player(game_id, player_id, name)
-        if not player:
-            await websocket.close()
-            return
+        # Check if player already exists in this game
+        existing_players = db_service.get_players(game_id)
+        existing_player = next((p for p in existing_players if p.id == consistent_player_id), None)
+        
+        if existing_player:
+            # Player already exists, just update connection status
+            existing_player.connected = True
+            db_service.db.commit()
+            player = existing_player
+        else:
+            # Add new player
+            player = db_service.add_player(game_id, consistent_player_id, name)
+            if not player:
+                await websocket.close()
+                return
     except Exception as e:
         print(f"Error in WebSocket connection: {e}")
         await websocket.close()
@@ -240,11 +260,16 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
     # If two players present, go to bidding for round 1
     players = db_service.get_players(game_id)
     if game.phase == Phase.LOBBY and len(players) == 2:
-        category_items = await load_category("programming_languages")
+        # Use the category that was set when the lobby was created
+        category = game.category or "programming_languages"  # Fallback to programming_languages
+        print(f"Starting game with category: {category}")
+        category_items = await load_category(category)
+        phase_ends_at = datetime.fromtimestamp(now() + settings.BIDDING_TIME_SECONDS)
+        print(f"Setting phase_ends_at to: {phase_ends_at} (timestamp: {phase_ends_at.timestamp()})")
         db_service.update_game(game_id,
             phase=Phase.BIDDING,
-            category="programming_languages",
-            phase_ends_at=datetime.fromtimestamp(now() + settings.BIDDING_TIME_SECONDS)
+            category=category,
+            phase_ends_at=phase_ends_at
         )
         start_tick(game_id)
 
@@ -272,6 +297,8 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
                         ))
                     )
                     
+                    # Refresh game state after update
+                    game = db_service.get_game(game_id)
                     players = db_service.get_players(game_id)
                     scores = db_service.get_all_scores(game_id)
                     await broadcast(game_id, {"type": "bid_update", "highBid": n,
@@ -288,6 +315,8 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
                     )
                     db_service.clear_used_items(game_id)
                     
+                    # Refresh game state after update
+                    game = db_service.get_game(game_id)
                     players = db_service.get_players(game_id)
                     scores = db_service.get_all_scores(game_id)
                     await broadcast(game_id, {"type": "state_update", "game": game_snapshot(game, players, scores)})
@@ -304,6 +333,7 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
                 else:
                     # Load category items to validate
                     category_items = await load_category(game.category)
+                    
                     if text not in category_items:
                         await websocket.send_text(json.dumps({"type": "item_rejected", "reason": "invalid", "text": text}))
                     else:
@@ -311,6 +341,8 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
                         new_count = game.list_count + 1
                         db_service.update_game(game_id, list_count=new_count)
                         
+                        # Refresh game state after update
+                        game = db_service.get_game(game_id)
                         players = db_service.get_players(game_id)
                         scores = db_service.get_all_scores(game_id)
                         await broadcast(game_id, {"type": "listing_update", "count": new_count, "lastItem": text,
@@ -319,6 +351,8 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
                         # early win if reached bid
                         if new_count >= (game.high_bid or 1):
                             db_service.update_game(game_id, phase_ends_at=datetime.fromtimestamp(now()))
+                            # Refresh game state after update
+                            game = db_service.get_game(game_id)
 
             # start_match { bestOf }
             elif typ == "start_match" and game.phase == Phase.LOBBY:
@@ -395,7 +429,7 @@ def get_game_by_lobby_code(lobby_code: str):
         return {"error": "Game not found"}
     
     # Get players for this game
-    players = db_service.get_game_players(game.id)
+    players = db_service.get_players(game.id)
     
     return {
         "game_id": game.id,
@@ -406,6 +440,87 @@ def get_game_by_lobby_code(lobby_code: str):
         "best_of": game.best_of,
         "round_number": game.round_number
     }
+
+@app.post("/lobby/create")
+def create_lobby(category: str, best_of: int = 5):
+    """Create a new lobby"""
+    try:
+        # Generate unique game ID
+        import uuid
+        game_id = f"game-{int(time.time() * 1000)}"
+        
+        # Create game with lobby code
+        game = db_service.create_game(game_id, best_of)
+        db_service.update_game(game_id, category=category)
+        
+        return {
+            "game_id": game.id,
+            "lobby_code": game.lobby_code,
+            "category": category,
+            "best_of": best_of,
+            "phase": "lobby"
+        }
+    except Exception as e:
+        return {"error": f"Failed to create lobby: {str(e)}"}
+
+@app.post("/lobby/join-random")
+def join_random_lobby(category: str):
+    """Join a random available lobby or create new one"""
+    try:
+        # First, try to find an existing lobby with players
+        existing_lobby = db_service.get_lobby_with_players(category)
+        
+        if existing_lobby:
+            players = db_service.get_players(existing_lobby.id)
+            return {
+                "game_id": existing_lobby.id,
+                "lobby_code": existing_lobby.lobby_code,
+                "category": existing_lobby.category,
+                "best_of": existing_lobby.best_of,
+                "phase": "lobby",
+                "players": [{"id": p.id, "name": p.name, "connected": p.connected} for p in players],
+                "action": "joined_existing"
+            }
+        else:
+            # Create new lobby
+            import uuid
+            game_id = f"game-{int(time.time() * 1000)}"
+            game = db_service.create_game(game_id, 5)  # Default best_of
+            db_service.update_game(game_id, category=category)
+            
+            return {
+                "game_id": game.id,
+                "lobby_code": game.lobby_code,
+                "category": category,
+                "best_of": 5,
+                "phase": "lobby",
+                "players": [],
+                "action": "created_new"
+            }
+    except Exception as e:
+        return {"error": f"Failed to join lobby: {str(e)}"}
+
+@app.get("/lobby/available/{category}")
+def get_available_lobbies(category: str):
+    """Get available lobbies for a category"""
+    try:
+        lobbies = db_service.get_available_lobbies(category)
+        result = []
+        
+        for lobby in lobbies:
+            players = db_service.get_players(lobby.id)
+            result.append({
+                "game_id": lobby.id,
+                "lobby_code": lobby.lobby_code,
+                "category": lobby.category,
+                "best_of": lobby.best_of,
+                "player_count": len(players),
+                "players": [{"id": p.id, "name": p.name, "connected": p.connected} for p in players]
+            })
+        
+        return {"lobbies": result}
+    except Exception as e:
+        return {"error": f"Failed to get lobbies: {str(e)}"}
 
 # ----- Startup and shutdown events
 

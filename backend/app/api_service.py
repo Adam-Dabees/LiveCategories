@@ -51,11 +51,12 @@ class CategoryAPIService:
             return self.cache[cache_key]
         
         try:
-            response = await self.client.get("https://restcountries.com/v3.1/all")
+            # Use a more reliable countries API
+            response = await self.client.get("https://restcountries.com/v3.1/all?fields=name")
             response.raise_for_status()
             data = response.json()
             
-            countries = {country["name"]["common"] for country in data}
+            countries = {country["name"]["common"] for country in data if "name" in country and "common" in country["name"]}
             
             self.cache[cache_key] = countries
             self.cache_ttl[cache_key] = asyncio.get_event_loop().time()
@@ -75,12 +76,12 @@ class CategoryAPIService:
             return self.cache[cache_key]
         
         try:
-            # Using a simple animals API
-            response = await self.client.get("https://api.api-ninjas.com/v1/animals")
+            # Use a more reliable animals API
+            response = await self.client.get("https://api.api-ninjas.com/v1/animals?limit=100")
             response.raise_for_status()
             data = response.json()
             
-            animals = {animal["name"] for animal in data}
+            animals = {animal["name"] for animal in data if "name" in animal}
             
             self.cache[cache_key] = animals
             self.cache_ttl[cache_key] = asyncio.get_event_loop().time()

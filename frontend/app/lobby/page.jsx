@@ -46,6 +46,8 @@ function LobbyPageContent() {
   const category = searchParams.get('category');
   const action = searchParams.get('action');
   const code = searchParams.get('code');
+  const gameId = searchParams.get('gameId');
+  const lobbyCode = searchParams.get('lobbyCode');
 
   useEffect(() => {
     if (!user) {
@@ -53,7 +55,11 @@ function LobbyPageContent() {
       return;
     }
 
-    connectWebSocket();
+    // Only connect if we don't already have a connection
+    if (!ws && !connected) {
+      connectWebSocket();
+    }
+    
     return () => {
       if (ws) {
         ws.close();
@@ -62,47 +68,51 @@ function LobbyPageContent() {
         clearInterval(timerRef.current);
       }
     };
-  }, [user]);
+  }, [user, gameId, lobbyCode]); // Add dependencies to prevent multiple connections
 
   useEffect(() => {
-    if (gameState?.phase_ends_at) {
+    if (gameState?.phaseEndsAt) {
       startTimer();
     }
-  }, [gameState?.phase_ends_at]);
+  }, [gameState?.phaseEndsAt]);
 
   const connectWebSocket = async () => {
-    let gameId;
+    // Prevent multiple connections
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+      console.log('WebSocket already connected or connecting');
+      return;
+    }
+
+    let finalGameId = gameId;
     
-    // If we have a lobby code, try to join that game
-    if (code) {
+    // If we have a lobby code but no gameId, try to join that game
+    if (lobbyCode && !gameId) {
       try {
-        const response = await fetch(`http://localhost:8001/lobby/${code}`);
+        const response = await fetch(`http://localhost:8001/lobby/${lobbyCode}`);
         const data = await response.json();
         if (data.error) {
           console.error('Failed to join lobby:', data.error);
           router.push('/');
           return;
         }
-        gameId = data.game_id;
+        finalGameId = data.game_id;
       } catch (error) {
         console.error('Error joining lobby:', error);
         router.push('/');
         return;
       }
-    } else if (action === 'join') {
-      // For random join, we'll create a new game for now
-      // In a real implementation, you'd want to find an existing lobby
-      gameId = `game-${Date.now()}`;
-    } else {
-      // Create new game
-      gameId = `game-${Date.now()}`;
+    } else if (!finalGameId) {
+      // Fallback: create a new game
+      finalGameId = `game-${Date.now()}`;
     }
     
-    const wsUrl = `ws://localhost:8001/ws/${gameId}?playerId=${user.id}&name=${user.username}`;
+    const wsUrl = `ws://localhost:8001/ws/${finalGameId}?playerId=${user.id}&name=${user.username}`;
     
+    console.log('Connecting to WebSocket:', wsUrl);
     const websocket = new WebSocket(wsUrl);
     
     websocket.onopen = () => {
+      console.log('WebSocket connected');
       setConnected(true);
       setWs(websocket);
     };
@@ -113,6 +123,7 @@ function LobbyPageContent() {
     };
 
     websocket.onclose = () => {
+      console.log('WebSocket disconnected');
       setConnected(false);
       setWs(null);
     };
@@ -134,7 +145,8 @@ function LobbyPageContent() {
       case 'bid_update':
         setCurrentBid(data.highBid);
         setGameState(data.game);
-        addMessage(`New high bid: ${data.highBid} by ${data.highBidderId}`);
+        const bidderName = data.game?.players?.[data.highBidderId]?.name || 'Unknown';
+        addMessage(`New high bid: ${data.highBid} by ${bidderName}`);
         break;
       case 'listing_update':
         setGameState(data.game);
@@ -143,7 +155,8 @@ function LobbyPageContent() {
         break;
       case 'round_result':
         setGameState(data.game);
-        addMessage(`Round complete! Winner: ${data.winnerId}, Hit: ${data.listerHit}`);
+        const winnerName = data.game?.players?.[data.winnerId]?.name || 'Unknown';
+        addMessage(`Round complete! Winner: ${winnerName}, Hit: ${data.listerHit}`);
         break;
       case 'item_rejected':
         addMessage(`Item rejected: ${data.text} (${data.reason})`);
@@ -160,10 +173,12 @@ function LobbyPageContent() {
     }
 
     timerRef.current = setInterval(() => {
-      if (gameState?.phase_ends_at) {
+      if (gameState?.phaseEndsAt) {
         const now = Date.now() / 1000;
-        const timeLeft = Math.max(0, gameState.phase_ends_at - now);
+        const timeLeft = Math.max(0, gameState.phaseEndsAt - now);
         setTimeLeft(Math.ceil(timeLeft));
+        
+        // Timer update debug info
 
         if (timeLeft <= 5) {
           setIsCritical(true);
@@ -277,16 +292,16 @@ function LobbyPageContent() {
               </div>
 
               {/* Timer */}
-              {timeLeft > 0 && (
-                <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-mono text-lg ${
-                  isCritical ? 'timer-critical bg-red-100' : 
-                  isWarning ? 'timer-warning bg-orange-100' : 
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  <Clock className="w-5 h-5" />
-                  <span>{formatTime(timeLeft)}</span>
-                </div>
-              )}
+              <div className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-mono text-xl font-bold ${
+                timeLeft > 0 ? (
+                  isCritical ? 'bg-red-500 text-white animate-pulse' : 
+                  isWarning ? 'bg-orange-500 text-white' : 
+                  'bg-blue-500 text-white'
+                ) : 'bg-gray-500 text-white'
+              }`}>
+                <Clock className="w-6 h-6" />
+                <span>{timeLeft > 0 ? formatTime(timeLeft) : '00:00'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -298,18 +313,12 @@ function LobbyPageContent() {
           <div className="lg:col-span-2 space-y-6">
             {/* Game State */}
             <div className="card p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary-600">
                     {gameState.round || 1}
                   </div>
                   <div className="text-sm text-gray-600">Round</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {gameState.bestOf || 5}
-                  </div>
-                  <div className="text-sm text-gray-600">Best of</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
@@ -329,11 +338,11 @@ function LobbyPageContent() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Category: {gameState.category?.replace('_', ' ').toUpperCase()}
                 </h3>
-                {gameState.lobbyCode && (
+                {(gameState.lobbyCode || lobbyCode) && (
                   <div className="mb-2">
                     <p className="text-sm text-gray-600 mb-1">Lobby Code:</p>
                     <p className="text-2xl font-bold text-primary-600 font-mono">
-                      {gameState.lobbyCode}
+                      {gameState.lobbyCode || lobbyCode}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       Share this code with friends to join!
@@ -452,6 +461,36 @@ function LobbyPageContent() {
                     Results are being calculated...
                   </p>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Game Ended */}
+            {gameState.phase === Phase.ENDED && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card p-6 text-center"
+              >
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  Game Over!
+                </h3>
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-2">Final Scores:</h4>
+                  {Object.values(gameState.players || {}).map((player) => (
+                    <div key={player.id} className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-gray-900">{player.name}</span>
+                      <span className="text-lg font-bold text-primary-600">
+                        {gameState.scores?.[player.id] || 0}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => router.push('/')}
+                  className="btn-primary"
+                >
+                  Back to Categories
+                </button>
               </motion.div>
             )}
           </div>
