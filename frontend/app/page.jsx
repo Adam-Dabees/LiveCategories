@@ -55,9 +55,12 @@ export default function HomePage() {
   const loadCategories = async () => {
     try {
       const response = await gameAPI.getCategories();
-      setCategories(response.categories);
+      // The API returns an array directly, not { categories: [...] }
+      setCategories(response || []);
     } catch (error) {
       console.error('Failed to load categories:', error);
+      // Set empty array on error so the UI still renders
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -72,14 +75,27 @@ export default function HomePage() {
     if (selectedCategory) {
       try {
         setLoading(true);
+        console.log('Creating lobby for category:', selectedCategory.name);
         const result = await gameAPI.createLobby(selectedCategory.name);
+        console.log('Lobby creation result:', result);
+        
         if (result.error) {
           console.error('Failed to create lobby:', result.error);
+          alert(`Failed to create lobby: ${result.error}`);
           return;
         }
+        
+        if (!result.game_id || !result.lobby_code) {
+          console.error('Invalid response from lobby creation:', result);
+          alert('Invalid response from server. Please try again.');
+          return;
+        }
+        
+        console.log('Navigating to lobby:', result.game_id);
         router.push(`/lobby?gameId=${result.game_id}&lobbyCode=${result.lobby_code}&category=${selectedCategory.name}`);
       } catch (error) {
         console.error('Failed to create lobby:', error);
+        alert(`Failed to create lobby: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -153,8 +169,18 @@ export default function HomePage() {
               Choose Your Category
             </h1>
             <p className="text-xl md:text-2xl text-primary-100 mb-8">
-              Test your knowledge in real-time battles!
+              Test your knowledge in real-time battles with friends!
             </p>
+            <div className="flex justify-center">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3 border border-white/20">
+                <div className="flex items-center space-x-2 text-primary-100">
+                  <Users className="w-5 h-5" />
+                  <span className="text-sm font-medium">
+                    🔥 Now with Real-time Multiplayer!
+                  </span>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -219,9 +245,17 @@ export default function HomePage() {
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 {selectedCategory.display_name}
               </h3>
-              <p className="text-gray-600">
+              <p className="text-gray-600 mb-3">
                 How would you like to play?
               </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-center space-x-2 text-blue-700">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    Real-time multiplayer - See other players instantly!
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">

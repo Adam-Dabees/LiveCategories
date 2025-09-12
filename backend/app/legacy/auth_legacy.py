@@ -1,3 +1,12 @@
+"""
+DEPRECATED: Legacy JWT-based authentication system.
+
+This file has been moved to legacy/ and should not be used.
+The application now uses Firebase Authentication.
+
+TODO: Remove this file in a future PR after confirming no dependencies remain.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session

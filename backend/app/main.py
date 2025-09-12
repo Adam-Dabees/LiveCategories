@@ -1,12 +1,22 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional
-import json, time, asyncio
+import json, time, asyncio, uuid
 from .api_service import api_service
 
 app = FastAPI(title="Realtime Categories (MVP)")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 async def startup_event():
@@ -303,3 +313,88 @@ async def get_category_items(category_name: str):
         }
     except Exception as e:
         return {"error": f"Failed to load category {category_name}: {str(e)}"}
+
+@app.post("/lobby/create")
+async def create_lobby(category: str, best_of: int = 5):
+    """Create a new game lobby"""
+    import uuid
+    game_id = str(uuid.uuid4())[:8]
+    
+    # Initialize category data
+    try:
+        items = await load_category(category)
+        new_game = Game(
+            id=game_id,
+            category=category,
+            best_of=best_of,
+            category_items=items
+        )
+        GAMES[game_id] = new_game
+        
+        return {
+            "success": True,
+            "game_id": game_id,
+            "lobby_code": game_id,
+            "category": category,
+            "best_of": best_of,
+            "status": "waiting_for_players"
+        }
+    except Exception as e:
+        return {"error": f"Failed to create lobby: {str(e)}"}
+
+@app.get("/lobby/{lobby_code}")
+async def get_lobby_info(lobby_code: str):
+    """Get lobby information"""
+    if lobby_code not in GAMES:
+        return {"error": "Lobby not found"}
+    
+    game = GAMES[lobby_code]
+    return {
+        "lobby_code": lobby_code,
+        "phase": game.phase,
+        "players": list(game.players.keys()),
+        "player_count": len(game.players),
+        "category": game.category,
+        "round": game.round,
+        "best_of": game.best_of
+    }
+
+@app.post("/lobby/join-random")
+async def join_random_lobby(category: str):
+    """Join a random lobby for the specified category"""
+    # Find available lobbies (simplified - just create new one for now)
+    import uuid
+    game_id = str(uuid.uuid4())[:8]
+    
+    try:
+        items = await load_category(category)
+        new_game = Game(
+            id=game_id,
+            category=category,
+            category_items=items
+        )
+        GAMES[game_id] = new_game
+        
+        return {
+            "success": True,
+            "game_id": game_id,
+            "lobby_code": game_id,
+            "category": category,
+            "status": "joined"
+        }
+    except Exception as e:
+        return {"error": f"Failed to join lobby: {str(e)}"}
+
+@app.get("/lobby/available/{category}")
+async def get_available_lobbies(category: str):
+    """Get available lobbies for a category"""
+    available = []
+    for game_id, game in games.items():
+        if len(game.players) < 2 and game.phase == Phase.LOBBY:
+            available.append({
+                "lobby_code": game_id,
+                "player_count": len(game.players),
+                "category": game.category or category
+            })
+    
+    return {"available_lobbies": available}

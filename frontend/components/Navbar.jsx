@@ -67,7 +67,7 @@ export default function Navbar() {
                 className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
               >
                 <User className="w-5 h-5" />
-                <span>{user?.display_name || user?.username}</span>
+                <span>{user?.displayName || user?.email?.split('@')[0]}</span>
               </button>
               
               <button
@@ -115,7 +115,7 @@ export default function Navbar() {
                   className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
                 >
                   <User className="w-5 h-5" />
-                  <span>{user?.display_name || user?.username}</span>
+                  <span>{user?.displayName || user?.email?.split('@')[0]}</span>
                 </button>
                 
                 <button
@@ -167,9 +167,9 @@ export default function Navbar() {
                   <User className="w-8 h-8 text-primary-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {user?.display_name || user?.username}
+                  {user?.displayName || user?.email?.split('@')[0]}
                 </h3>
-                <p className="text-gray-600 mb-4">@{user?.username}</p>
+                <p className="text-gray-600 mb-4">{user?.email}</p>
                 <div className="space-y-2">
                   <button
                     onClick={() => {

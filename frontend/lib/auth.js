@@ -1,7 +1,9 @@
 import axios from 'axios';
-import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'http://localhost:8001';
+// Use environment variable for API URL, fallback to relative path for Vercel deployment
+// In production (Vercel), this will be '/api'
+// In development, this can be set to 'http://localhost:8001' via environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -11,57 +13,7 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = Cookies.get('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle auth errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      Cookies.remove('auth_token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
-export const authAPI = {
-  register: async (username, email, password) => {
-    const response = await api.post('/auth/register', {
-      username,
-      email,
-      password,
-    });
-    return response.data;
-  },
-
-  login: async (username, password) => {
-    const response = await api.post('/auth/login', {
-      username,
-      password,
-    });
-    return response.data;
-  },
-
-  getProfile: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
-
-  getStats: async () => {
-    const response = await api.get('/auth/stats');
-    return response.data;
-  },
-};
-
+// Game API - keeping these for game functionality
 export const gameAPI = {
   getCategories: async () => {
     const response = await api.get('/categories');
@@ -84,13 +36,23 @@ export const gameAPI = {
   },
 
   createLobby: async (category, bestOf = 5) => {
-    const response = await api.post(`/lobby/create?category=${category}&best_of=${bestOf}`);
-    return response.data;
+    try {
+      const response = await api.post(`/lobby/create?category=${category}&best_of=${bestOf}`);
+      return response.data;
+    } catch (error) {
+      console.error('API Error creating lobby:', error.response?.data || error.message);
+      return { error: error.response?.data?.detail || error.message };
+    }
   },
 
   joinRandomLobby: async (category) => {
-    const response = await api.post(`/lobby/join-random?category=${category}`);
-    return response.data;
+    try {
+      const response = await api.post(`/lobby/join-random?category=${category}`);
+      return response.data;
+    } catch (error) {
+      console.error('API Error joining random lobby:', error.response?.data || error.message);
+      return { error: error.response?.data?.detail || error.message };
+    }
   },
 
   getAvailableLobbies: async (category) => {

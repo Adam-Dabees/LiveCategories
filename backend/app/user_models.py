@@ -8,12 +8,17 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = Column(String, unique=True, nullable=False, index=True)
+    firebase_uid = Column(String, unique=True, nullable=False, index=True)  # Firebase UID
+    username = Column(String, unique=True, nullable=True, index=True)  # Optional for backward compatibility
     email = Column(String, unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
+    display_name = Column(String, nullable=True)  # Firebase display name
+    photo_url = Column(String, nullable=True)  # Firebase photo URL
+    email_verified = Column(Boolean, default=False)  # Firebase email verification status
+    # Remove password_hash - Firebase handles authentication
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+    firebase_created_at = Column(DateTime, nullable=True)  # Firebase creation time
     
     # Relationships
     game_participations = relationship("GameParticipation", back_populates="user", cascade="all, delete-orphan")

@@ -28,7 +28,7 @@ export default function LoginPage() {
     try {
       let result;
       if (isLogin) {
-        result = await login(formData.username, formData.password);
+        result = await login(formData.email, formData.password);
       } else {
         result = await register(
           formData.username,
@@ -110,6 +110,24 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="input-field pl-10"
+                  placeholder="your@email.com"
+                  required
+                />
+              </div>
+            </div>
+
             {!isLogin && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -117,40 +135,22 @@ export default function LoginPage() {
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  Username
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
+                    type="text"
+                    name="username"
+                    value={formData.username}
                     onChange={handleInputChange}
                     className="input-field pl-10"
-                    placeholder="your@email.com"
+                    placeholder="Username"
                     required={!isLogin}
                   />
                 </div>
               </motion.div>
             )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Username
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  className="input-field pl-10"
-                  placeholder="Username"
-                  required
-                />
-              </div>
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

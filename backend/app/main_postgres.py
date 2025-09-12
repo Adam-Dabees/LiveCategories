@@ -9,10 +9,11 @@ from .api_service import api_service
 from .db_service import db_service
 from .database import get_db, create_tables
 from .config import settings
-from .auth import router as auth_router
+from .firebase_auth import get_current_user, get_current_user_optional
+from .user_service import UserService
 from sqlalchemy.orm import Session
 
-app = FastAPI(title="LiveCategories - PostgreSQL Edition")
+app = FastAPI(title="LiveCategories - Firebase Edition")
 
 # Add CORS middleware
 app.add_middleware(
@@ -23,8 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include auth router
-app.include_router(auth_router)
+# Note: Legacy auth router removed - now using Firebase Authentication
 
 # ----- Helper functions
 
@@ -375,7 +375,7 @@ async def ws_endpoint(websocket: WebSocket, game_id: str):
 @app.get("/", response_class=HTMLResponse)
 def root():
     return """
-    <h3>LiveCategories - PostgreSQL Edition</h3>
+    <h3>LiveCategories - Firebase Edition</h3>
     <p>WebSocket at <code>/ws/{gameId}?name=YourName</code></p>
     <p>Available endpoints:</p>
     <ul>
@@ -383,8 +383,34 @@ def root():
         <li><code>GET /categories/{name}</code> - Get items for a specific category</li>
         <li><code>GET /games/{game_id}/stats</code> - Get game statistics</li>
         <li><code>GET /players/{player_id}/history</code> - Get player history</li>
+        <li><code>GET /user/profile</code> - Get current user profile (requires Firebase auth)</li>
     </ul>
     """
+
+# Firebase authenticated endpoints
+@app.get("/user/profile")
+async def get_user_profile(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user's profile information."""
+    user_service = UserService()
+    
+    # Get or create user from Firebase info
+    user = user_service.get_or_create_user(db, current_user)
+    
+    return {
+        "id": user.id,
+        "firebase_uid": user.firebase_uid,
+        "email": user.email,
+        "username": user.username,
+        "display_name": user.display_name,
+        "photo_url": user.photo_url,
+        "email_verified": user.email_verified,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login": user.last_login.isoformat() if user.last_login else None
+    }
 
 @app.get("/categories")
 async def get_categories():

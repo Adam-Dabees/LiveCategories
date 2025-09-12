@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import { authAPI } from '../../lib/auth';
+import { getUserStats } from '../../lib/firestore';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -32,8 +32,21 @@ export default function ProfilePage() {
 
   const loadStats = async () => {
     try {
-      const response = await authAPI.getStats();
-      setStats(response);
+      const result = await getUserStats(user.id);
+      if (result.success) {
+        // Convert Firestore field names to match your UI
+        const firestoreStats = result.data;
+        setStats({
+          total_games: firestoreStats.totalGames || 0,
+          games_won: firestoreStats.gamesWon || 0,
+          win_rate: firestoreStats.winRate || 0,
+          total_score: firestoreStats.totalScore || 0,
+          average_score: firestoreStats.averageScore || 0,
+          longest_win_streak: firestoreStats.longestWinStreak || 0,
+          current_win_streak: firestoreStats.currentWinStreak || 0,
+          favorite_category: firestoreStats.favoriteCategory || null
+        });
+      }
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {

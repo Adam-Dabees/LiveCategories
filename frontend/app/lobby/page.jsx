@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import gameService from '../../lib/gameService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, 
@@ -27,7 +28,6 @@ const Phase = {
 
 function LobbyPageContent() {
   const [gameState, setGameState] = useState(null);
-  const [ws, setWs] = useState(null);
   const [connected, setConnected] = useState(false);
   const [currentBid, setCurrentBid] = useState(1);
   const [bidInput, setBidInput] = useState('');
@@ -37,11 +37,14 @@ function LobbyPageContent() {
   const [isWarning, setIsWarning] = useState(false);
   const [lastItem, setLastItem] = useState('');
   const [messages, setMessages] = useState([]);
+  const [lobbyData, setLobbyData] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const timerRef = useRef(null);
+  const cleanupRef = useRef(null);
 
   const category = searchParams.get('category');
   const action = searchParams.get('action');
@@ -55,82 +58,101 @@ function LobbyPageContent() {
       return;
     }
 
-    // Only connect if we don't already have a connection
-    if (!ws && !connected) {
-      connectWebSocket();
-    }
+    // Initialize lobby connection
+    initializeLobby();
+    
+    // Handle window close/refresh - mark player as disconnected
+    const handleBeforeUnload = async () => {
+      const currentLobbyCode = lobbyCode || code;
+      if (currentLobbyCode && user) {
+        try {
+          await gameService.updatePlayerConnection(currentLobbyCode, user.uid, false);
+        } catch (error) {
+          console.error('Error updating connection status:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
     
     return () => {
-      if (ws) {
-        ws.close();
+      // Cleanup listeners when component unmounts
+      if (cleanupRef.current) {
+        cleanupRef.current();
       }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Mark player as disconnected when leaving
+      const currentLobbyCode = lobbyCode || code;
+      if (currentLobbyCode && user) {
+        gameService.updatePlayerConnection(currentLobbyCode, user.uid, false).catch(console.error);
+      }
     };
-  }, [user, gameId, lobbyCode]); // Add dependencies to prevent multiple connections
+  }, [user, lobbyCode, code]); // Dependencies for lobby initialization
 
   useEffect(() => {
-    if (gameState?.phaseEndsAt) {
+    if (lobbyData?.gameState?.phaseEndsAt) {
       startTimer();
     }
-  }, [gameState?.phaseEndsAt]);
+  }, [lobbyData?.gameState?.phaseEndsAt]);
 
-  const connectWebSocket = async () => {
-    // Prevent multiple connections
-    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-      console.log('WebSocket already connected or connecting');
-      return;
-    }
-
-    let finalGameId = gameId;
-    
-    // If we have a lobby code but no gameId, try to join that game
-    if (lobbyCode && !gameId) {
-      try {
-        const response = await fetch(`http://localhost:8001/lobby/${lobbyCode}`);
-        const data = await response.json();
-        if (data.error) {
-          console.error('Failed to join lobby:', data.error);
-          router.push('/');
-          return;
-        }
-        finalGameId = data.game_id;
-      } catch (error) {
-        console.error('Error joining lobby:', error);
+  const initializeLobby = async () => {
+    try {
+      setLoading(true);
+      console.log('Initializing lobby...');
+      
+      // Use either lobbyCode or code parameter
+      const currentLobbyCode = lobbyCode || code;
+      
+      if (!currentLobbyCode) {
+        console.error('No lobby code provided');
         router.push('/');
         return;
       }
-    } else if (!finalGameId) {
-      // Fallback: create a new game
-      finalGameId = `game-${Date.now()}`;
-    }
-    
-    const wsUrl = `ws://localhost:8001/ws/${finalGameId}?playerId=${user.id}&name=${user.username}`;
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    const websocket = new WebSocket(wsUrl);
-    
-    websocket.onopen = () => {
-      console.log('WebSocket connected');
-      setConnected(true);
-      setWs(websocket);
-    };
 
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handleGameMessage(data);
-    };
+      console.log('Setting up listener for lobby:', currentLobbyCode);
 
-    websocket.onclose = () => {
-      console.log('WebSocket disconnected');
+      // Set up real-time listener for lobby changes
+      const cleanup = gameService.listenToLobby(currentLobbyCode, (data) => {
+        console.log('Lobby data updated:', data);
+        setLobbyData(data);
+        setConnected(true);
+        setLoading(false);
+        
+        // Update game state if it exists
+        if (data.gameState) {
+          setGameState(data.gameState);
+        }
+      });
+      
+      cleanupRef.current = cleanup;
+
+      console.log('Joining lobby as player...');
+
+      // Join the lobby as a player
+      const player = {
+        id: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        email: user.email,
+        ready: false,
+        connected: true
+      };
+
+      // Small delay to ensure lobby creation has completed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      await gameService.joinLobby(currentLobbyCode, player);
+      console.log('Successfully joined lobby');
+      
+    } catch (error) {
+      console.error('Error initializing lobby:', error);
+      setLoading(false);
+      // Still allow offline mode
       setConnected(false);
-      setWs(null);
-    };
-
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+    }
   };
 
   const handleGameMessage = (data) => {
@@ -173,9 +195,9 @@ function LobbyPageContent() {
     }
 
     timerRef.current = setInterval(() => {
-      if (gameState?.phaseEndsAt) {
+      if (lobbyData?.gameState?.phaseEndsAt) {
         const now = Date.now() / 1000;
-        const timeLeft = Math.max(0, gameState.phaseEndsAt - now);
+        const timeLeft = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
         setTimeLeft(Math.ceil(timeLeft));
         
         // Timer update debug info
@@ -202,9 +224,23 @@ function LobbyPageContent() {
     setMessages(prev => [...prev, { id: Date.now(), message, timestamp: new Date() }]);
   };
 
-  const sendMessage = (type, data = {}) => {
-    if (ws && connected) {
-      ws.send(JSON.stringify({ type, ...data }));
+  const sendMessage = async (type, data = {}) => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      if (!currentLobbyCode) return;
+
+      const action = {
+        type,
+        playerId: user.uid,
+        playerName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        ...data
+      };
+
+      await gameService.sendGameAction(currentLobbyCode, action);
+      addMessage(`Action sent: ${type}`);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      addMessage(`Failed to send ${type}`);
     }
   };
 
@@ -234,7 +270,8 @@ function LobbyPageContent() {
   };
 
   const getPhaseTitle = () => {
-    switch (gameState?.phase) {
+    const phase = lobbyData?.gameState?.phase || Phase.LOBBY;
+    switch (phase) {
       case Phase.LOBBY: return 'Waiting for Players...';
       case Phase.BIDDING: return 'Bidding Phase';
       case Phase.LISTING: return 'Item Submission';
@@ -245,8 +282,9 @@ function LobbyPageContent() {
   };
 
   const getPhaseDescription = () => {
-    switch (gameState?.phase) {
-      case Phase.LOBBY: return 'Waiting for another player to join...';
+    const phase = lobbyData?.gameState?.phase || Phase.LOBBY;
+    switch (phase) {
+      case Phase.LOBBY: return Object.keys(lobbyData?.players || {}).length < 2 ? 'Waiting for another player to join...' : 'Ready to start!';
       case Phase.BIDDING: return 'Place your bid or pass to end bidding';
       case Phase.LISTING: return 'Submit items from the category';
       case Phase.SUMMARY: return 'Round results are being calculated...';
@@ -255,14 +293,49 @@ function LobbyPageContent() {
     }
   };
 
-  if (!gameState) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full"
-        />
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-gray-600">Connecting to lobby...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!connected && !lobbyData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-4">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Connection Failed</h2>
+          <p className="text-gray-600 mb-4">
+            Unable to connect to the lobby. This might be due to Firebase Firestore permissions.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-left">
+            <h3 className="font-semibold text-blue-900 mb-2">Quick Fix:</h3>
+            <ol className="text-sm text-blue-800 space-y-1">
+              <li>1. Go to Firebase Console</li>
+              <li>2. Navigate to Firestore Database → Rules</li>
+              <li>3. Set rules to allow authenticated users</li>
+              <li>4. Check FIRESTORE_SETUP.md for details</li>
+            </ol>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            You can still play in offline mode.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="btn-primary"
+          >
+            Return Home
+          </button>
+        </div>
       </div>
     );
   }
@@ -314,21 +387,21 @@ function LobbyPageContent() {
             {/* Game State */}
             <div className="card p-6">
               <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="text-center">
+                <div key="round" className="text-center">
                   <div className="text-2xl font-bold text-primary-600">
-                    {gameState.round || 1}
+                    {lobbyData?.gameState?.round || 1}
                   </div>
                   <div className="text-sm text-gray-600">Round</div>
                 </div>
-                <div className="text-center">
+                <div key="high-bid" className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
-                    {gameState.highBid || 0}
+                    {lobbyData?.gameState?.highBid || 0}
                   </div>
                   <div className="text-sm text-gray-600">High Bid</div>
                 </div>
-                <div className="text-center">
+                <div key="items-listed" className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
-                    {gameState.listCount || 0}
+                    {lobbyData?.gameState?.listCount || 0}
                   </div>
                   <div className="text-sm text-gray-600">Items Listed</div>
                 </div>
@@ -336,29 +409,29 @@ function LobbyPageContent() {
 
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Category: {gameState.category?.replace('_', ' ').toUpperCase()}
+                  Category: {(lobbyData?.category || category)?.replace('_', ' ').toUpperCase()}
                 </h3>
-                {(gameState.lobbyCode || lobbyCode) && (
+                {(lobbyData?.id || lobbyCode || code) && (
                   <div className="mb-2">
                     <p className="text-sm text-gray-600 mb-1">Lobby Code:</p>
                     <p className="text-2xl font-bold text-primary-600 font-mono">
-                      {gameState.lobbyCode || lobbyCode}
+                      {lobbyData?.id || lobbyCode || code}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       Share this code with friends to join!
                     </p>
                   </div>
                 )}
-                {gameState.highBidderId && (
+                {lobbyData?.gameState?.highBidderId && (
                   <p className="text-gray-600">
-                    High Bidder: {gameState.highBidderId}
+                    High Bidder: {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || lobbyData.gameState.highBidderId}
                   </p>
                 )}
               </div>
             </div>
 
             {/* Bidding Phase */}
-            {gameState.phase === Phase.BIDDING && (
+            {lobbyData?.gameState?.phase === Phase.BIDDING && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -397,7 +470,7 @@ function LobbyPageContent() {
             )}
 
             {/* Listing Phase */}
-            {gameState.phase === Phase.LISTING && (
+            {lobbyData?.gameState?.phase === Phase.LISTING && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -426,14 +499,14 @@ function LobbyPageContent() {
                       </button>
                     </div>
                     <p className="text-sm text-gray-600">
-                      Progress: {gameState.listCount || 0} / {gameState.highBid || 1}
+                      Progress: {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.highBid || 1}
                     </p>
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">
-                      Waiting for {gameState.listerId} to submit items...
+                      Waiting for {lobbyData?.gameState?.listerId} to submit items...
                     </p>
                     {lastItem && (
                       <p className="text-sm text-gray-500 mt-2">
@@ -446,7 +519,7 @@ function LobbyPageContent() {
             )}
 
             {/* Summary Phase */}
-            {gameState.phase === Phase.SUMMARY && (
+            {lobbyData?.gameState?.phase === Phase.SUMMARY && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -465,7 +538,7 @@ function LobbyPageContent() {
             )}
 
             {/* Game Ended */}
-            {gameState.phase === Phase.ENDED && (
+            {lobbyData?.gameState?.phase === Phase.ENDED && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -476,11 +549,11 @@ function LobbyPageContent() {
                 </h3>
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-2">Final Scores:</h4>
-                  {Object.values(gameState.players || {}).map((player) => (
+                  {Object.values(lobbyData?.players || {}).map((player) => (
                     <div key={player.id} className="flex justify-between items-center py-2 border-b border-gray-200">
                       <span className="text-gray-900">{player.name}</span>
                       <span className="text-lg font-bold text-primary-600">
-                        {gameState.scores?.[player.id] || 0}
+                        {lobbyData?.gameState?.scores?.[player.id] || 0}
                       </span>
                     </div>
                   ))}
@@ -500,23 +573,43 @@ function LobbyPageContent() {
             {/* Players */}
             <div className="card p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Players ({Object.keys(gameState.players || {}).length})
+                Players ({Object.keys(lobbyData?.players || {}).length}/2)
               </h3>
               <div className="space-y-3">
-                {Object.values(gameState.players || {}).map((player) => (
+                {Object.values(lobbyData?.players || {}).map((player) => (
                   <div key={player.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className={`w-3 h-3 rounded-full ${
                         player.connected ? 'bg-green-500' : 'bg-red-500'
                       }`} />
                       <span className="text-gray-900">{player.name}</span>
+                      {player.ready && (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      )}
                     </div>
                     <span className="text-sm text-gray-600">
-                      {gameState.scores?.[player.id] || 0}
+                      {lobbyData?.gameState?.scores?.[player.id] || 0}
                     </span>
                   </div>
                 ))}
+                {Object.keys(lobbyData?.players || {}).length < 2 && (
+                  <div className="flex items-center space-x-3 opacity-50">
+                    <div className="w-3 h-3 rounded-full bg-gray-300" />
+                    <span className="text-gray-500">Waiting for player...</span>
+                  </div>
+                )}
               </div>
+              
+              {/* Game start button for lobby phase */}
+              {Object.keys(lobbyData?.players || {}).length >= 2 && 
+               lobbyData?.status === 'waiting_for_players' && (
+                <button
+                  onClick={() => sendMessage('start_game')}
+                  className="btn-primary w-full mt-4"
+                >
+                  Start Game
+                </button>
+              )}
             </div>
 
             {/* Messages */}
