@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import gameService from '../../lib/gameService';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Clock, 
   Users, 
@@ -66,7 +66,7 @@ function LobbyPageContent() {
       const currentLobbyCode = lobbyCode || code;
       if (currentLobbyCode && user) {
         try {
-          await gameService.updatePlayerConnection(currentLobbyCode, user.uid, false);
+          await gameService.updatePlayerConnection(currentLobbyCode, user.id, false);
         } catch (error) {
           console.error('Error updating connection status:', error);
         }
@@ -88,7 +88,7 @@ function LobbyPageContent() {
       // Mark player as disconnected when leaving
       const currentLobbyCode = lobbyCode || code;
       if (currentLobbyCode && user) {
-        gameService.updatePlayerConnection(currentLobbyCode, user.uid, false).catch(console.error);
+        gameService.updatePlayerConnection(currentLobbyCode, user.id, false).catch(console.error);
       }
     };
   }, [user, lobbyCode, code]); // Dependencies for lobby initialization
@@ -134,8 +134,8 @@ function LobbyPageContent() {
 
       // Join the lobby as a player
       const player = {
-        id: user.uid,
-        name: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        id: user.id, // Fixed: use user.id instead of user.uid
+        name: user.displayName || user.username || user.email?.split('@')[0] || 'Anonymous',
         email: user.email,
         ready: false,
         connected: true
@@ -196,16 +196,15 @@ function LobbyPageContent() {
 
     timerRef.current = setInterval(() => {
       if (lobbyData?.gameState?.phaseEndsAt) {
-        const now = Date.now() / 1000;
-        const timeLeft = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
-        setTimeLeft(Math.ceil(timeLeft));
+        const now = Date.now(); // Already in milliseconds
+        const timeLeftMs = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
+        const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
+        setTimeLeft(timeLeftSeconds);
         
-        // Timer update debug info
-
-        if (timeLeft <= 5) {
+        if (timeLeftSeconds <= 5) {
           setIsCritical(true);
           setIsWarning(false);
-        } else if (timeLeft <= 10) {
+        } else if (timeLeftSeconds <= 10) {
           setIsWarning(true);
           setIsCritical(false);
         } else {
@@ -213,15 +212,52 @@ function LobbyPageContent() {
           setIsWarning(false);
         }
 
-        if (timeLeft <= 0) {
+        // Handle phase transitions when time runs out
+        if (timeLeftSeconds <= 0) {
           clearInterval(timerRef.current);
+          handlePhaseTimeout();
         }
       }
     }, 100);
   };
 
+  const handlePhaseTimeout = async () => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      const phase = lobbyData?.gameState?.phase;
+      
+      if (phase === 'bidding') {
+        // If no bids were placed, restart bidding
+        if (!lobbyData?.gameState?.highBidderId) {
+          addMessage('No bids placed, restarting bidding phase...');
+          await gameService.startGame(currentLobbyCode); // Restart bidding
+        } else {
+          // Transition to listing phase
+          await gameService.transitionToListing(currentLobbyCode);
+          addMessage('Bidding time expired, moving to listing phase');
+        }
+      } else if (phase === 'listing') {
+        // Complete listing phase and calculate scores
+        await gameService.completeListingPhase(currentLobbyCode);
+        addMessage('Listing time expired, calculating scores...');
+      } else if (phase === 'summary') {
+        // Summary phase timeout - transition to next bidding round  
+        const currentLobbyCode = lobbyCode || code;
+        await gameService.transitionFromSummary(currentLobbyCode);
+        addMessage('Starting next round...');
+      }
+    } catch (error) {
+      console.error('Error handling phase timeout:', error);
+      addMessage(`Phase transition error: ${error.message}`);
+    }
+  };
+
   const addMessage = (message) => {
-    setMessages(prev => [...prev, { id: Date.now(), message, timestamp: new Date() }]);
+    setMessages(prev => [...prev, { 
+      id: `${Date.now()}-${Math.random()}`, 
+      message, 
+      timestamp: new Date() 
+    }]);
   };
 
   const sendMessage = async (type, data = {}) => {
@@ -229,9 +265,15 @@ function LobbyPageContent() {
       const currentLobbyCode = lobbyCode || code;
       if (!currentLobbyCode) return;
 
+      // Handle special actions
+      if (type === 'start_game') {
+        await handleStartGame();
+        return;
+      }
+
       const action = {
         type,
-        playerId: user.uid,
+        playerId: user.id,
         playerName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
         ...data
       };
@@ -244,22 +286,72 @@ function LobbyPageContent() {
     }
   };
 
-  const handleBid = () => {
-    const bid = parseInt(bidInput);
-    if (bid > currentBid) {
-      sendMessage('place_bid', { n: bid });
-      setBidInput('');
+  const handleStartGame = async () => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      if (!currentLobbyCode) return;
+
+      addMessage('Starting game...');
+      await gameService.startGame(currentLobbyCode);
+      addMessage('Game started! Get ready to bid!');
+    } catch (error) {
+      console.error('Error starting game:', error);
+      addMessage(`Failed to start game: ${error.message}`);
     }
   };
 
-  const handlePass = () => {
-    sendMessage('pass');
+  const handleBid = async () => {
+    try {
+      const bid = parseInt(bidInput);
+      const currentGameBid = lobbyData?.gameState?.currentBid || 0;
+      
+      if (bid <= currentGameBid) {
+        addMessage(`Bid must be higher than ${currentGameBid}`);
+        return;
+      }
+      
+      const currentLobbyCode = lobbyCode || code;
+      await gameService.placeBid(currentLobbyCode, user.id, bid);
+      setBidInput('');
+      addMessage(`Bid placed: ${bid}`);
+    } catch (error) {
+      console.error('Error placing bid:', error);
+      addMessage(`Failed to place bid: ${error.message}`);
+    }
   };
 
-  const handleSubmitItem = () => {
-    if (itemInput.trim()) {
-      sendMessage('submit_item', { text: itemInput.trim() });
+  const handlePass = async () => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      await gameService.transitionToListing(currentLobbyCode);
+      addMessage('Bidding ended, moving to listing phase');
+    } catch (error) {
+      console.error('Error ending bidding:', error);
+      addMessage(`Failed to end bidding: ${error.message}`);
+    }
+  };
+
+  const handleSubmitItem = async () => {
+    try {
+      if (!itemInput.trim()) {
+        addMessage('Please enter an item');
+        return;
+      }
+      
+      const currentLobbyCode = lobbyCode || code;
+      const result = await gameService.submitItem(currentLobbyCode, user.id, itemInput.trim());
+      
+      if (result.isValid) {
+        addMessage(`✅ "${itemInput.trim()}" - Correct!`);
+      } else {
+        addMessage(`❌ "${itemInput.trim()}" - Not in ${lobbyData?.gameState?.category || 'this category'}`);
+      }
+      
       setItemInput('');
+      setLastItem(itemInput.trim());
+    } catch (error) {
+      console.error('Error submitting item:', error);
+      addMessage(`Failed to submit item: ${error.message}`);
     }
   };
 
@@ -433,6 +525,7 @@ function LobbyPageContent() {
             {/* Bidding Phase */}
             {lobbyData?.gameState?.phase === Phase.BIDDING && (
               <motion.div
+                key="bidding-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="card p-6"
@@ -440,6 +533,14 @@ function LobbyPageContent() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Place Your Bid
                 </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Current high bid: {lobbyData?.gameState?.currentBid || 0}
+                  {lobbyData?.gameState?.highBidderId && (
+                    <span className="ml-2">
+                      by {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || 'Unknown'}
+                    </span>
+                  )}
+                </p>
                 <div className="flex space-x-4">
                   <input
                     type="number"
@@ -447,7 +548,7 @@ function LobbyPageContent() {
                     onChange={(e) => setBidInput(e.target.value)}
                     placeholder="Enter bid amount"
                     className="flex-1 input-field"
-                    min={currentBid + 1}
+                    min={(lobbyData?.gameState?.currentBid || 0) + 1}
                   />
                   <button
                     onClick={handleBid}
@@ -472,6 +573,7 @@ function LobbyPageContent() {
             {/* Listing Phase */}
             {lobbyData?.gameState?.phase === Phase.LISTING && (
               <motion.div
+                key="listing-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="card p-6"
@@ -521,6 +623,7 @@ function LobbyPageContent() {
             {/* Summary Phase */}
             {lobbyData?.gameState?.phase === Phase.SUMMARY && (
               <motion.div
+                key="summary-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="card p-6"
@@ -540,6 +643,7 @@ function LobbyPageContent() {
             {/* Game Ended */}
             {lobbyData?.gameState?.phase === Phase.ENDED && (
               <motion.div
+                key="ended-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="card p-6 text-center"
@@ -547,17 +651,52 @@ function LobbyPageContent() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-4">
                   Game Over!
                 </h3>
+                
+                {/* Winner announcement */}
+                {lobbyData?.gameState?.winner && (
+                  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 className="text-xl font-bold text-yellow-800 mb-2">
+                      🏆 Winner: {lobbyData?.players?.[lobbyData.gameState.winner]?.name || 'Unknown'}
+                    </h4>
+                    <p className="text-yellow-700">
+                      Final Score: {lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] || 0} points
+                    </p>
+                  </div>
+                )}
+                
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-2">Final Scores:</h4>
-                  {Object.values(lobbyData?.players || {}).map((player) => (
-                    <div key={player.id} className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-gray-900">{player.name}</span>
+                  {Object.values(lobbyData?.players || {})
+                    .sort((a, b) => (lobbyData?.gameState?.scores?.[b.id] || 0) - (lobbyData?.gameState?.scores?.[a.id] || 0))
+                    .map((player, index) => (
+                    <div key={player.id} className={`flex justify-between items-center py-2 border-b border-gray-200 ${
+                      index === 0 ? 'bg-yellow-50 font-bold' : ''
+                    }`}>
+                      <span className="text-gray-900">
+                        {index === 0 && '🥇 '}{player.name}
+                      </span>
                       <span className="text-lg font-bold text-primary-600">
                         {lobbyData?.gameState?.scores?.[player.id] || 0}
                       </span>
                     </div>
                   ))}
                 </div>
+                
+                {/* Game stats */}
+                <div className="mb-6 text-sm text-gray-600">
+                  <p>Category: <span className="font-semibold">{lobbyData?.category || 'Unknown'}</span></p>
+                  <p>Rounds played: <span className="font-semibold">{lobbyData?.gameState?.round || 1}</span></p>
+                </div>
+                
+                {/* Countdown to reset */}
+                {timeLeft > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                    <p className="text-blue-800">
+                      Starting new game in <span className="font-bold">{timeLeft}</span> seconds...
+                    </p>
+                  </div>
+                )}
+                
                 <button
                   onClick={() => router.push('/')}
                   className="btn-primary"

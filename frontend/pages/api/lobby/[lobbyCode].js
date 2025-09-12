@@ -19,12 +19,30 @@ export default function handler(req, res) {
   const { lobbyCode } = req.query;
 
   try {
-    const lobby = gameStorage.getLobby(lobbyCode);
+    // First try to get lobby from local storage
+    let lobby = gameStorage.getLobby(lobbyCode);
     
     if (!lobby) {
-      return res.status(404).json({ error: 'Lobby not found' });
+      // If not found in local storage, the lobby might exist in Firestore
+      // For now, we'll return a generic response that allows the client to try joining
+      // The actual lobby validation will happen when the user tries to join via Firestore
+      console.log(`Lobby ${lobbyCode} not found in local storage, assuming it exists in Firestore`);
+      return res.status(200).json({
+        lobby_code: lobbyCode,
+        phase: 'lobby',
+        players: [],
+        player_count: 0,
+        category: 'unknown', // This will be determined when joining
+        status: 'waiting_for_players',
+        scores: {},
+        round: 1,
+        highBid: 0,
+        listCount: 0,
+        source: 'firestore' // Indicates this is a Firestore-based lobby
+      });
     }
 
+    // Return local storage lobby data
     res.status(200).json({
       lobby_code: lobby.lobbyCode,
       phase: lobby.phase,
@@ -35,7 +53,8 @@ export default function handler(req, res) {
       scores: lobby.scores,
       round: lobby.round,
       highBid: lobby.highBid,
-      listCount: lobby.listCount
+      listCount: lobby.listCount,
+      source: 'local' // Indicates this is a local storage lobby
     });
   } catch (error) {
     console.error('Error getting lobby info:', error);

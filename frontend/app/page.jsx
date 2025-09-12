@@ -121,17 +121,26 @@ export default function HomePage() {
   };
 
   const handleJoinWithCode = async () => {
-    if (selectedCategory && lobbyCode.trim()) {
+    if (lobbyCode.trim()) {
       try {
         setLoading(true);
         const result = await gameAPI.getGameByLobbyCode(lobbyCode.trim());
         if (result.error) {
           console.error('Lobby not found:', result.error);
+          alert('Lobby not found. Please check the code and try again.');
           return;
         }
-        router.push(`/lobby?gameId=${result.game_id}&lobbyCode=${result.lobby_code}&category=${result.category}`);
+        
+        // Navigate to lobby page - the lobby page will handle category detection
+        if (result.category && result.category !== 'unknown') {
+          router.push(`/lobby?code=${result.lobby_code}&category=${result.category}`);
+        } else {
+          // For Firestore lobbies where category is unknown, let the lobby page figure it out
+          router.push(`/lobby?code=${result.lobby_code}`);
+        }
       } catch (error) {
         console.error('Failed to join lobby:', error);
+        alert('Failed to join lobby. Please try again.');
       } finally {
         setLoading(false);
       }
