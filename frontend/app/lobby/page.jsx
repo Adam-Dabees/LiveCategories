@@ -500,9 +500,12 @@ function LobbyPageContent() {
               </div>
 
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Category: {(lobbyData?.category || category)?.replace('_', ' ').toUpperCase()}
-                </h3>
+                <div className="mb-6">
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                    {(lobbyData?.category || category)?.replace('_', ' ').toUpperCase()}
+                  </h2>
+                  <div className="w-24 h-1 bg-gradient-to-r from-purple-500 to-blue-500 mx-auto rounded-full"></div>
+                </div>
                 {(lobbyData?.id || lobbyCode || code) && (
                   <div className="mb-2">
                     <p className="text-sm text-gray-600 mb-1">Lobby Code:</p>
@@ -528,45 +531,64 @@ function LobbyPageContent() {
                 key="bidding-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card p-6"
+                className="card p-8"
               >
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Place Your Bid
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Current high bid: {lobbyData?.gameState?.currentBid || 0}
-                  {lobbyData?.gameState?.highBidderId && (
-                    <span className="ml-2">
-                      by {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || 'Unknown'}
-                    </span>
-                  )}
-                </p>
-                <div className="flex space-x-4">
-                  <input
-                    type="number"
-                    value={bidInput}
-                    onChange={(e) => setBidInput(e.target.value)}
-                    placeholder="Enter bid amount"
-                    className="flex-1 input-field"
-                    min={(lobbyData?.gameState?.currentBid || 0) + 1}
-                  />
-                  <button
-                    onClick={handleBid}
-                    disabled={!bidInput || parseInt(bidInput) <= currentBid}
-                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Bid
-                  </button>
-                  <button
-                    onClick={handlePass}
-                    className="btn-secondary"
-                  >
-                    Pass
-                  </button>
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    🎯 Bidding Phase
+                  </h3>
+                  <p className="text-gray-600">How many items can you list from this category?</p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  Current high bid: {currentBid}. Enter a higher amount to bid.
-                </p>
+                
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                      {lobbyData?.gameState?.currentBid || 0}
+                    </div>
+                    <div className="text-lg text-gray-700 mb-1">Current High Bid</div>
+                    {lobbyData?.gameState?.highBidderId && (
+                      <div className="text-sm text-gray-600">
+                        by <span className="font-semibold text-blue-700">
+                          {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || 'Unknown'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex space-x-4">
+                    <input
+                      type="number"
+                      value={bidInput}
+                      onChange={(e) => setBidInput(e.target.value)}
+                      placeholder="Enter your bid"
+                      className="flex-1 input-field text-lg text-center"
+                      min={(lobbyData?.gameState?.currentBid || 0) + 1}
+                    />
+                    <button
+                      onClick={handleBid}
+                      disabled={!bidInput || parseInt(bidInput) <= (lobbyData?.gameState?.currentBid || 0)}
+                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 text-lg font-semibold"
+                    >
+                      💰 Bid
+                    </button>
+                  </div>
+                  
+                  <div className="flex justify-center">
+                    <button
+                      onClick={handlePass}
+                      className="btn-secondary px-8 py-3 text-lg font-semibold"
+                    >
+                      ✋ Pass
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="mt-4 text-center text-sm text-gray-600">
+                  <p>Enter a number higher than {lobbyData?.gameState?.currentBid || 0} to place a bid</p>
+                  <p className="mt-1">The winner will need to list that many items from the category!</p>
+                </div>
               </motion.div>
             )}
 
@@ -576,45 +598,82 @@ function LobbyPageContent() {
                 key="listing-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card p-6"
+                className="card p-8"
               >
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Submit Items
-                </h3>
-                {gameState.listerId === user.id ? (
-                  <div className="space-y-4">
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    📝 Item Submission
+                  </h3>
+                  <p className="text-gray-600">List items from the category to reach your target!</p>
+                </div>
+                
+                {lobbyData?.gameState?.listerId === user.id ? (
+                  <div className="space-y-6">
+                    {/* Progress Bar */}
+                    <div className="bg-gray-200 rounded-full h-4 mb-4">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-blue-500 h-4 rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${Math.min(100, ((lobbyData?.gameState?.listCount || 0) / (lobbyData?.gameState?.currentBid || 1)) * 100)}%` 
+                        }}
+                      ></div>
+                    </div>
+                    
+                    <div className="text-center mb-4">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.currentBid || 1}
+                      </div>
+                      <div className="text-sm text-gray-600">Items submitted</div>
+                    </div>
+                    
                     <div className="flex space-x-4">
                       <input
                         type="text"
                         value={itemInput}
                         onChange={(e) => setItemInput(e.target.value)}
-                        placeholder="Enter item name"
-                        className="flex-1 input-field"
+                        placeholder="Enter item name..."
+                        className="flex-1 input-field text-lg"
                         onKeyPress={(e) => e.key === 'Enter' && handleSubmitItem()}
                       />
                       <button
                         onClick={handleSubmitItem}
                         disabled={!itemInput.trim()}
-                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 text-lg font-semibold"
                       >
-                        Submit
+                        ➕ Submit
                       </button>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Progress: {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.highBid || 1}
-                    </p>
+                    
+                    <div className="text-center text-sm text-gray-600">
+                      <p>Type items from the <span className="font-semibold text-purple-600">{(lobbyData?.category || 'category').replace('_', ' ').toUpperCase()}</span> category</p>
+                      <p className="mt-1">You need {lobbyData?.gameState?.currentBid || 1} valid items to win!</p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">
-                      Waiting for {lobbyData?.gameState?.listerId} to submit items...
-                    </p>
-                    {lastItem && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        Last item: {lastItem}
+                  <div className="text-center py-12">
+                    <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-8">
+                      <Users className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+                      <h4 className="text-xl font-semibold text-gray-800 mb-2">
+                        Waiting for {lobbyData?.players?.[lobbyData.gameState.listerId]?.name || 'the winner'} to submit items...
+                      </h4>
+                      <p className="text-gray-600 mb-4">
+                        They need to list {lobbyData?.gameState?.currentBid || 1} items from the category
                       </p>
-                    )}
+                      
+                      {lastItem && (
+                        <div className="bg-white border border-orange-200 rounded-lg p-4 mt-4">
+                          <p className="text-sm text-gray-600 mb-1">Last item submitted:</p>
+                          <p className="text-lg font-semibold text-gray-800">"{lastItem}"</p>
+                        </div>
+                      )}
+                      
+                      <div className="mt-4">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.currentBid || 1}
+                        </div>
+                        <div className="text-sm text-gray-600">Items submitted so far</div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </motion.div>
@@ -646,63 +705,111 @@ function LobbyPageContent() {
                 key="ended-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card p-6 text-center"
+                className="card p-8 text-center"
               >
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  Game Over!
-                </h3>
+                <div className="mb-8">
+                  <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4 animate-bounce" />
+                  <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                    Game Complete!
+                  </h3>
+                  <p className="text-gray-600">Great job everyone!</p>
+                </div>
                 
                 {/* Winner announcement */}
                 {lobbyData?.gameState?.winner && (
-                  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <h4 className="text-xl font-bold text-yellow-800 mb-2">
-                      🏆 Winner: {lobbyData?.players?.[lobbyData.gameState.winner]?.name || 'Unknown'}
-                    </h4>
-                    <p className="text-yellow-700">
-                      Final Score: {lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] || 0} points
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="mb-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl shadow-lg"
+                  >
+                    <div className="flex items-center justify-center mb-3">
+                      <Trophy className="w-8 h-8 text-yellow-600 mr-2" />
+                      <h4 className="text-2xl font-bold text-yellow-800">
+                        🏆 {lobbyData?.players?.[lobbyData.gameState.winner]?.name || 'Unknown'} Wins!
+                      </h4>
+                    </div>
+                    <p className="text-lg text-yellow-700 font-semibold">
+                      Final Score: {lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] || 0} point{lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] !== 1 ? 's' : ''}
                     </p>
-                  </div>
+                  </motion.div>
                 )}
                 
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-2">Final Scores:</h4>
-                  {Object.values(lobbyData?.players || {})
-                    .sort((a, b) => (lobbyData?.gameState?.scores?.[b.id] || 0) - (lobbyData?.gameState?.scores?.[a.id] || 0))
-                    .map((player, index) => (
-                    <div key={player.id} className={`flex justify-between items-center py-2 border-b border-gray-200 ${
-                      index === 0 ? 'bg-yellow-50 font-bold' : ''
-                    }`}>
-                      <span className="text-gray-900">
-                        {index === 0 && '🥇 '}{player.name}
-                      </span>
-                      <span className="text-lg font-bold text-primary-600">
-                        {lobbyData?.gameState?.scores?.[player.id] || 0}
-                      </span>
-                    </div>
-                  ))}
+                <div className="mb-8">
+                  <h4 className="text-xl font-semibold text-gray-800 mb-4">Final Results</h4>
+                  <div className="max-w-md mx-auto space-y-3">
+                    {Object.values(lobbyData?.players || {})
+                      .sort((a, b) => (lobbyData?.gameState?.scores?.[b.id] || 0) - (lobbyData?.gameState?.scores?.[a.id] || 0))
+                      .map((player, index) => (
+                      <motion.div 
+                        key={player.id} 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 + index * 0.1 }}
+                        className={`flex justify-between items-center py-3 px-4 rounded-lg border-2 ${
+                          index === 0 
+                            ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-yellow-300 font-bold shadow-md' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-3">
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                          </span>
+                          <span className="text-gray-900 text-lg">
+                            {player.name}
+                          </span>
+                        </div>
+                        <span className={`text-xl font-bold ${
+                          index === 0 ? 'text-yellow-600' : 'text-gray-600'
+                        }`}>
+                          {lobbyData?.gameState?.scores?.[player.id] || 0}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
                 
                 {/* Game stats */}
-                <div className="mb-6 text-sm text-gray-600">
-                  <p>Category: <span className="font-semibold">{lobbyData?.category || 'Unknown'}</span></p>
-                  <p>Rounds played: <span className="font-semibold">{lobbyData?.gameState?.round || 1}</span></p>
+                <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h5 className="font-semibold text-blue-900 mb-2">Game Summary</h5>
+                  <div className="flex justify-center space-x-6 text-sm text-blue-800">
+                    <div>
+                      <span className="font-semibold">Category:</span> {(lobbyData?.category || 'Unknown').replace('_', ' ').toUpperCase()}
+                    </div>
+                    <div>
+                      <span className="font-semibold">High Bid:</span> {lobbyData?.gameState?.currentBid || 0}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Items Listed:</span> {lobbyData?.gameState?.listCount || 0}
+                    </div>
+                  </div>
                 </div>
                 
-                {/* Countdown to reset */}
-                {timeLeft > 0 && (
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                    <p className="text-blue-800">
-                      Starting new game in <span className="font-bold">{timeLeft}</span> seconds...
-                    </p>
+                {/* Play Again Options */}
+                <div className="space-y-4">
+                  <h5 className="text-lg font-semibold text-gray-800 mb-4">What would you like to do next?</h5>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                      onClick={() => {
+                        // Create new lobby with same category
+                        const newLobbyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                        router.push(`/lobby?category=${lobbyData?.category || 'fruits'}&action=create&code=${newLobbyCode}`);
+                      }}
+                      className="btn-primary flex items-center justify-center px-6 py-3"
+                    >
+                      <RotateCcw className="w-5 h-5 mr-2" />
+                      Play Again (Same Category)
+                    </button>
+                    <button
+                      onClick={() => router.push('/')}
+                      className="btn-secondary flex items-center justify-center px-6 py-3"
+                    >
+                      <Play className="w-5 h-5 mr-2" />
+                      Try Different Category
+                    </button>
                   </div>
-                )}
-                
-                <button
-                  onClick={() => router.push('/')}
-                  className="btn-primary"
-                >
-                  Back to Categories
-                </button>
+                </div>
               </motion.div>
             )}
           </div>
@@ -732,22 +839,33 @@ function LobbyPageContent() {
                   </div>
                 ))}
                 {Object.keys(lobbyData?.players || {}).length < 2 && (
-                  <div className="flex items-center space-x-3 opacity-50">
-                    <div className="w-3 h-3 rounded-full bg-gray-300" />
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center space-x-3 opacity-50"
+                  >
+                    <motion.div 
+                      className="w-3 h-3 rounded-full bg-gray-300"
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
                     <span className="text-gray-500">Waiting for player...</span>
-                  </div>
+                  </motion.div>
                 )}
               </div>
               
               {/* Game start button for lobby phase */}
               {Object.keys(lobbyData?.players || {}).length >= 2 && 
                lobbyData?.status === 'waiting_for_players' && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => sendMessage('start_game')}
-                  className="btn-primary w-full mt-4"
+                  className="btn-primary w-full mt-4 py-4 text-lg font-bold flex items-center justify-center"
                 >
-                  Start Game
-                </button>
+                  <Play className="w-6 h-6 mr-2" />
+                  🚀 Start Game
+                </motion.button>
               )}
             </div>
 

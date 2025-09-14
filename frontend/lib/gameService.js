@@ -554,12 +554,12 @@ class GameService {
             throw new Error('Bid must be higher than current bid');
           }
           
-          // Update game state
+          // Update game state - don't reset timer, just update bid
           const updatedGameState = {
             ...gameState,
             currentBid: bidAmount,
-            highBidderId: playerId,
-            phaseEndsAt: Date.now() + (30 * 1000) // Reset timer to 30 seconds
+            highBidderId: playerId
+            // Keep existing phaseEndsAt - don't reset timer
           };
           
           await updateDoc(lobbyRef, {
@@ -587,7 +587,7 @@ class GameService {
         
         lobby.gameState.currentBid = bidAmount;
         lobby.gameState.highBidderId = playerId;
-        lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
+        // Keep existing phaseEndsAt - don't reset timer
         lobby.lastActivity = Date.now();
         
         localLobbies.set(lobbyId, lobby);
@@ -825,9 +825,8 @@ class GameService {
             roundWinner = opponentId;
           }
           
-          // Check if game should end (after multiple rounds or someone reaches winning score)
-          const maxScore = Math.max(...Object.values(updatedScores));
-          const isGameComplete = gameState.round >= 3 || maxScore >= 3; // Game ends after 3 rounds or someone reaches 3 points
+          // Single round game - always end after one round
+          const isGameComplete = true;
           
           let updatedGameState;
           if (isGameComplete) {
@@ -924,8 +923,8 @@ class GameService {
           roundWinner = opponentId;
         }
         
-        const maxScore = Math.max(...Object.values(updatedScores));
-        const isGameComplete = gameState.round >= 3 || maxScore >= 3;
+        // Single round game - always end after one round
+        const isGameComplete = true;
         
         if (isGameComplete) {
           lobby.gameState = {
