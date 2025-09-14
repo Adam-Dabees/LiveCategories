@@ -121,7 +121,7 @@ export default function LoginPage() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="input-field pl-10"
+                  className="input-field pl-12"
                   placeholder="your@email.com"
                   required
                 />
@@ -144,7 +144,7 @@ export default function LoginPage() {
                     name="username"
                     value={formData.username}
                     onChange={handleInputChange}
-                    className="input-field pl-10"
+                    className="input-field pl-12"
                     placeholder="Username"
                     required={!isLogin}
                   />
@@ -163,7 +163,7 @@ export default function LoginPage() {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="input-field pl-10 pr-10"
+                  className="input-field pl-12 pr-12"
                   placeholder="Password"
                   required
                 />

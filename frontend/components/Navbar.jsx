@@ -28,7 +28,8 @@ export default function Navbar() {
   };
 
   const handleHomeClick = () => {
-    if (window.location.pathname !== '/') {
+    // Only show confirmation when leaving a lobby (not just any page)
+    if (window.location.pathname.startsWith('/lobby')) {
       setShowLeaveConfirm(true);
     } else {
       router.push('/');
@@ -218,11 +219,11 @@ export default function Navbar() {
                   <Home className="w-8 h-8 text-orange-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Leave Current Game?
+                  Leave Current Lobby?
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to leave the current game and go to the home page? 
-                  Your progress will be saved.
+                  Are you sure you want to leave the current lobby and go to the categories page? 
+                  You'll need to rejoin if you want to continue playing.
                 </p>
                 <div className="flex space-x-3">
                   <button
@@ -235,7 +236,7 @@ export default function Navbar() {
                     onClick={confirmLeave}
                     className="flex-1 btn-primary"
                   >
-                    Yes, Leave
+                    Yes, Leave Lobby
                   </button>
                 </div>
               </div>

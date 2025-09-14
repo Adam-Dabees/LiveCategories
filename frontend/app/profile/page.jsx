@@ -13,7 +13,8 @@ import {
   BarChart3,
   Calendar,
   Star,
-  Zap
+  Zap,
+  Gamepad2
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -59,9 +60,12 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full"
-        />
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: "center" }}
+          className="mx-auto"
+        >
+          <Gamepad2 className="w-12 h-12 text-primary-600" />
+        </motion.div>
       </div>
     );
   }

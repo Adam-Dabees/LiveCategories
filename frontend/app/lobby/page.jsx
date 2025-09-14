@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import gameService from '../../lib/gameService';
@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
+  Gamepad2
 } from 'lucide-react';
 
 const Phase = {
@@ -39,6 +40,9 @@ function LobbyPageContent() {
   const [messages, setMessages] = useState([]);
   const [lobbyData, setLobbyData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [lastSubmissionResult, setLastSubmissionResult] = useState(null);
+  const [submissionAnimation, setSubmissionAnimation] = useState(false);
   
   const { user } = useAuth();
   const router = useRouter();
@@ -93,11 +97,93 @@ function LobbyPageContent() {
     };
   }, [user, lobbyCode, code]); // Dependencies for lobby initialization
 
+  const startTimer = () => {
+    console.log('startTimer called');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    timerRef.current = setInterval(() => {
+      // Only start timer if we have a phaseEndsAt and we're not waiting for players
+      if (lobbyData?.gameState?.phaseEndsAt && lobbyData?.status !== 'waiting_for_players') {
+        console.log('Timer tick:', { 
+          phaseEndsAt: lobbyData.gameState.phaseEndsAt, 
+          now: Date.now(),
+          status: lobbyData.status 
+        });
+        const now = Date.now(); // Already in milliseconds
+        const timeLeftMs = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
+        const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
+        setTimeLeft(timeLeftSeconds);
+        
+        // Debug: Log every 5 seconds to see if timer is working
+        if (timeLeftSeconds % 5 === 0 && timeLeftSeconds > 0) {
+          console.log(`Timer: ${timeLeftSeconds}s remaining, phase: ${lobbyData?.gameState?.phase}`);
+        }
+        
+        // Debug: Log when timer is close to zero
+        if (timeLeftSeconds <= 3) {
+          console.log(`Timer almost zero: ${timeLeftSeconds}s remaining`);
+        }
+        
+        // Debug: Log every second in the last 10 seconds
+        if (timeLeftSeconds <= 10) {
+          console.log(`Timer: ${timeLeftSeconds}s remaining`);
+        }
+        
+        
+        if (timeLeftSeconds <= 5) {
+          setIsCritical(true);
+          setIsWarning(false);
+        } else if (timeLeftSeconds <= 10) {
+          setIsWarning(true);
+          setIsCritical(false);
+        } else {
+          setIsCritical(false);
+          setIsWarning(false);
+        }
+
+        // Handle phase transitions when time runs out
+        if (timeLeftSeconds <= 0) {
+          console.log('Timer reached zero, calling handlePhaseTimeout...');
+          console.log('Current game state:', lobbyData?.gameState);
+          console.log('Phase:', lobbyData?.gameState?.phase);
+          console.log('High bidder ID:', lobbyData?.gameState?.highBidderId);
+          console.log('Current bid:', lobbyData?.gameState?.currentBid);
+          clearInterval(timerRef.current);
+          handlePhaseTimeout();
+        }
+      } else {
+        // Idle mode when waiting for players
+        setTimeLeft(0);
+        setIsCritical(false);
+        setIsWarning(false);
+      }
+    }, 100);
+  };
+
   useEffect(() => {
+    console.log('useEffect triggered:', { 
+      phaseEndsAt: lobbyData?.gameState?.phaseEndsAt, 
+      phase: lobbyData?.gameState?.phase,
+      status: lobbyData?.status
+    });
+    
     if (lobbyData?.gameState?.phaseEndsAt) {
+      console.log('Starting timer...');
       startTimer();
     }
-  }, [lobbyData?.gameState?.phaseEndsAt]);
+    
+    // Cleanup timer when component unmounts or phase changes
+    return () => {
+      if (timerRef.current) {
+        console.log('Cleaning up timer...');
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [lobbyData?.gameState?.phaseEndsAt, lobbyData?.gameState?.phase]);
+
 
   const initializeLobby = async () => {
     try {
@@ -118,6 +204,7 @@ function LobbyPageContent() {
       // Set up real-time listener for lobby changes
       const cleanup = gameService.listenToLobby(currentLobbyCode, (data) => {
         console.log('Lobby data updated:', data);
+        console.log('Game state:', data.gameState);
         setLobbyData(data);
         setConnected(true);
         setLoading(false);
@@ -125,6 +212,7 @@ function LobbyPageContent() {
         // Update game state if it exists
         if (data.gameState) {
           setGameState(data.gameState);
+          console.log('Updated game state:', data.gameState);
         }
       });
       
@@ -189,69 +277,6 @@ function LobbyPageContent() {
     }
   };
 
-  const startTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    timerRef.current = setInterval(() => {
-      if (lobbyData?.gameState?.phaseEndsAt) {
-        const now = Date.now(); // Already in milliseconds
-        const timeLeftMs = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
-        const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
-        setTimeLeft(timeLeftSeconds);
-        
-        if (timeLeftSeconds <= 5) {
-          setIsCritical(true);
-          setIsWarning(false);
-        } else if (timeLeftSeconds <= 10) {
-          setIsWarning(true);
-          setIsCritical(false);
-        } else {
-          setIsCritical(false);
-          setIsWarning(false);
-        }
-
-        // Handle phase transitions when time runs out
-        if (timeLeftSeconds <= 0) {
-          clearInterval(timerRef.current);
-          handlePhaseTimeout();
-        }
-      }
-    }, 100);
-  };
-
-  const handlePhaseTimeout = async () => {
-    try {
-      const currentLobbyCode = lobbyCode || code;
-      const phase = lobbyData?.gameState?.phase;
-      
-      if (phase === 'bidding') {
-        // If no bids were placed, restart bidding
-        if (!lobbyData?.gameState?.highBidderId) {
-          addMessage('No bids placed, restarting bidding phase...');
-          await gameService.startGame(currentLobbyCode); // Restart bidding
-        } else {
-          // Transition to listing phase
-          await gameService.transitionToListing(currentLobbyCode);
-          addMessage('Bidding time expired, moving to listing phase');
-        }
-      } else if (phase === 'listing') {
-        // Complete listing phase and calculate scores
-        await gameService.completeListingPhase(currentLobbyCode);
-        addMessage('Listing time expired, calculating scores...');
-      } else if (phase === 'summary') {
-        // Summary phase timeout - transition to next bidding round  
-        const currentLobbyCode = lobbyCode || code;
-        await gameService.transitionFromSummary(currentLobbyCode);
-        addMessage('Starting next round...');
-      }
-    } catch (error) {
-      console.error('Error handling phase timeout:', error);
-      addMessage(`Phase transition error: ${error.message}`);
-    }
-  };
-
   const addMessage = (message) => {
     setMessages(prev => [...prev, { 
       id: `${Date.now()}-${Math.random()}`, 
@@ -259,6 +284,72 @@ function LobbyPageContent() {
       timestamp: new Date() 
     }]);
   };
+
+  const copyLobbyCode = async () => {
+    const lobbyCode = lobbyData?.id || lobbyCode || code;
+    if (lobbyCode) {
+      try {
+        await navigator.clipboard.writeText(lobbyCode);
+        setCopied(true);
+        addMessage('Lobby code copied to clipboard!');
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy lobby code:', err);
+        addMessage('Failed to copy lobby code');
+      }
+    }
+  };
+
+  const triggerSubmissionAnimation = (isCorrect) => {
+    setLastSubmissionResult(isCorrect);
+    setSubmissionAnimation(true);
+    setTimeout(() => {
+      setSubmissionAnimation(false);
+      setLastSubmissionResult(null);
+    }, 1500); // Reduced from 2000ms to 1500ms
+  };
+
+  const handlePhaseTimeout = useCallback(async () => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      const phase = lobbyData?.gameState?.phase;
+      
+      console.log('Phase timeout triggered:', { 
+        phase, 
+        currentLobbyCode, 
+        highBidderId: lobbyData?.gameState?.highBidderId,
+        currentBid: lobbyData?.gameState?.currentBid,
+        gameState: lobbyData?.gameState
+      });
+      
+      if (phase === 'bidding') {
+        // If no bids were placed, restart bidding
+        if (!lobbyData?.gameState?.highBidderId || lobbyData?.gameState?.currentBid === 0) {
+          console.log('No bids placed, restarting bidding phase');
+          addMessage('No bids placed, restarting bidding phase...');
+          await gameService.startGame(currentLobbyCode); // Restart bidding
+        } else {
+          // Transition to listing phase
+          console.log('Transitioning to listing phase');
+          addMessage('Bidding time expired, moving to listing phase');
+          await gameService.transitionToListing(currentLobbyCode);
+        }
+      } else if (phase === 'listing') {
+        // Complete listing phase and calculate scores
+        console.log('Completing listing phase');
+        await gameService.completeListingPhase(currentLobbyCode);
+        addMessage('Listing time expired, calculating scores...');
+        } else if (phase === 'ended') {
+          // Game ended - redirect to categories page
+          console.log('Game ended - redirecting to categories page');
+          addMessage('Game complete! Redirecting to categories page...');
+          router.push('/');
+        }
+    } catch (error) {
+      console.error('Error handling phase timeout:', error);
+      addMessage(`Phase transition error: ${error.message}`);
+    }
+  }, [lobbyCode, code, lobbyData?.gameState?.phase, lobbyData?.gameState?.highBidderId]);
 
   const sendMessage = async (type, data = {}) => {
     try {
@@ -323,6 +414,15 @@ function LobbyPageContent() {
   const handlePass = async () => {
     try {
       const currentLobbyCode = lobbyCode || code;
+      
+      // If no bids were placed, place a minimum bid first
+      if (!lobbyData?.gameState?.highBidderId || lobbyData?.gameState?.currentBid === 0) {
+        console.log('No bids placed, placing minimum bid of 1 before transition');
+        await gameService.placeBid(currentLobbyCode, user.id, 1);
+        // Small delay to let the bid register
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
       await gameService.transitionToListing(currentLobbyCode);
       addMessage('Bidding ended, moving to listing phase');
     } catch (error) {
@@ -341,6 +441,9 @@ function LobbyPageContent() {
       const currentLobbyCode = lobbyCode || code;
       const result = await gameService.submitItem(currentLobbyCode, user.id, itemInput.trim());
       
+      // Trigger animation based on result
+      triggerSubmissionAnimation(result.isValid);
+      
       if (result.isValid) {
         addMessage(`✅ "${itemInput.trim()}" - Correct!`);
       } else {
@@ -351,7 +454,14 @@ function LobbyPageContent() {
       setLastItem(itemInput.trim());
     } catch (error) {
       console.error('Error submitting item:', error);
-      addMessage(`Failed to submit item: ${error.message}`);
+      
+      // Handle duplicate submission error specifically
+      if (error.message.includes('already submitted')) {
+        addMessage(`⚠️ "${itemInput.trim()}" already submitted! Try a different item.`);
+        setItemInput(''); // Clear the input to encourage trying something new
+      } else {
+        addMessage(`Failed to submit item: ${error.message}`);
+      }
     }
   };
 
@@ -391,9 +501,12 @@ function LobbyPageContent() {
         <div className="text-center">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4"
-          />
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            style={{ transformOrigin: "center" }}
+            className="mx-auto mb-4"
+          >
+            <Gamepad2 className="w-12 h-12 text-primary-600" />
+          </motion.div>
           <p className="text-gray-600">Connecting to lobby...</p>
         </div>
       </div>
@@ -435,38 +548,45 @@ function LobbyPageContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 text-white relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 -translate-x-full animate-pulse"></div>
+          <div className="absolute top-1/4 right-0 w-64 h-64 bg-gradient-to-l from-pink-500/20 to-transparent rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 left-0 w-48 h-48 bg-gradient-to-r from-yellow-500/20 to-transparent rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {getPhaseTitle()}
-              </h1>
-              <p className="text-gray-600">{getPhaseDescription()}</p>
+              <motion.h1 
+                className="text-3xl font-black mb-2 bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                🎯 {getPhaseTitle()}
+              </motion.h1>
+              <p className="text-blue-100 text-lg font-semibold">{getPhaseDescription()}</p>
             </div>
             
             <div className="flex items-center space-x-4">
               {/* Connection Status */}
-              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-                connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  connected ? 'bg-green-500' : 'bg-red-500'
-                }`} />
-                <span>{connected ? 'Connected' : 'Disconnected'}</span>
-              </div>
-
-              {/* Timer */}
-              <div className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-mono text-xl font-bold ${
-                timeLeft > 0 ? (
-                  isCritical ? 'bg-red-500 text-white animate-pulse' : 
-                  isWarning ? 'bg-orange-500 text-white' : 
-                  'bg-blue-500 text-white'
-                ) : 'bg-gray-500 text-white'
-              }`}>
-                <Clock className="w-6 h-6" />
-                <span>{timeLeft > 0 ? formatTime(timeLeft) : '00:00'}</span>
-              </div>
+              <motion.div 
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-bold ${
+                  connected ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg'
+                }`}
+                animate={{ scale: connected ? [1, 1.05, 1] : 1 }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                <motion.div 
+                  className={`w-3 h-3 rounded-full ${
+                    connected ? 'bg-white' : 'bg-white'
+                  }`}
+                  animate={{ opacity: connected ? [1, 0.3, 1] : 1 }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                />
+                <span>{connected ? '🟢 LIVE' : '🔴 OFFLINE'}</span>
+              </motion.div>
             </div>
           </div>
         </div>
@@ -477,51 +597,97 @@ function LobbyPageContent() {
           {/* Game Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* Game State */}
-            <div className="card p-6">
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div key="round" className="text-center">
-                  <div className="text-2xl font-bold text-primary-600">
+            <div className="relative overflow-hidden bg-gradient-to-br from-white to-blue-50 rounded-3xl p-8 shadow-2xl border-2 border-blue-200">
+              {/* Animated background pattern */}
+              <div className="absolute inset-0 opacity-5">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-blue-200 to-transparent transform -skew-x-12 -translate-x-full animate-pulse"></div>
+              </div>
+              
+              <div className="relative z-10">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-6 mb-8">
+                  <motion.div 
+                    className="text-center bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl p-4 shadow-lg"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="text-3xl font-black text-blue-600 mb-1">
                     {lobbyData?.gameState?.round || 1}
                   </div>
-                  <div className="text-sm text-gray-600">Round</div>
+                    <div className="text-sm font-bold text-blue-800 uppercase tracking-wide">Round</div>
+                  </motion.div>
+                  
+                  <motion.div 
+                    className="text-center bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl p-4 shadow-lg"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="text-3xl font-black text-purple-600 mb-1">
+                      {lobbyData?.gameState?.currentBid || 0}
                 </div>
-                <div key="high-bid" className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {lobbyData?.gameState?.highBid || 0}
+                    <div className="text-sm font-bold text-purple-800 uppercase tracking-wide">High Bid</div>
+                  </motion.div>
+                  
+                  <motion.div 
+                    className="text-center bg-gradient-to-br from-orange-100 to-orange-200 rounded-2xl p-4 shadow-lg"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="text-3xl font-black text-orange-600 mb-1">
+                      {(lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length}
                   </div>
-                  <div className="text-sm text-gray-600">High Bid</div>
-                </div>
-                <div key="items-listed" className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {lobbyData?.gameState?.listCount || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Items Listed</div>
-                </div>
+                    <div className="text-sm font-bold text-orange-800 uppercase tracking-wide">Items Listed</div>
+                  </motion.div>
               </div>
 
-              <div className="text-center">
-                <div className="mb-6">
-                  <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2">
-                    {(lobbyData?.category || category)?.replace('_', ' ').toUpperCase()}
-                  </h2>
-                  <div className="w-24 h-1 bg-gradient-to-r from-purple-500 to-blue-500 mx-auto rounded-full"></div>
-                </div>
+                {/* Category Display */}
+                <div className="text-center mb-8">
+                  <motion.div 
+                    className="mb-6"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  >
+                    <h2 className="text-5xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-3">
+                      {(lobbyData?.category || category)?.replace('_', ' ').toUpperCase()}
+                    </h2>
+                    <div className="w-32 h-2 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 mx-auto rounded-full shadow-lg"></div>
+                  </motion.div>
+                  
                 {(lobbyData?.id || lobbyCode || code) && (
-                  <div className="mb-2">
-                    <p className="text-sm text-gray-600 mb-1">Lobby Code:</p>
-                    <p className="text-2xl font-bold text-primary-600 font-mono">
+                    <motion.div 
+                      className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-2xl p-4 shadow-lg mb-4 cursor-pointer hover:shadow-xl transition-all duration-200"
+                      onClick={copyLobbyCode}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <p className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">🎮 Lobby Code</p>
+                      <p className="text-3xl font-black text-primary-600 font-mono tracking-wider">
                       {lobbyData?.id || lobbyCode || code}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Share this code with friends to join!
-                    </p>
-                  </div>
-                )}
+                      <p className="text-sm text-gray-600 mt-2 font-semibold flex items-center justify-center">
+                        {copied ? (
+                          <>
+                            <span className="text-green-600 mr-2">✅</span>
+                            Copied to clipboard!
+                          </>
+                        ) : (
+                          <>
+                            <span className="mr-2">📤</span>
+                            Click to copy and share with friends!
+                          </>
+                        )}
+                      </p>
+                    </motion.div>
+                  )}
+                  
                 {lobbyData?.gameState?.highBidderId && (
-                  <p className="text-gray-600">
-                    High Bidder: {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || lobbyData.gameState.highBidderId}
+                    <div className="bg-gradient-to-r from-yellow-100 to-orange-200 rounded-2xl p-4 shadow-lg">
+                      <p className="text-lg font-bold text-orange-800">
+                        👑 High Bidder: <span className="text-2xl">{lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || lobbyData.gameState.highBidderId}</span>
                   </p>
+                    </div>
                 )}
+                </div>
               </div>
             </div>
 
@@ -531,63 +697,105 @@ function LobbyPageContent() {
                 key="bidding-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card p-8"
+                className="relative overflow-hidden bg-gradient-to-br from-white to-yellow-50 rounded-3xl p-8 shadow-2xl border-2 border-yellow-200"
               >
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    🎯 Bidding Phase
-                  </h3>
-                  <p className="text-gray-600">How many items can you list from this category?</p>
+                {/* Animated background pattern */}
+                <div className="absolute inset-0 opacity-5">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-yellow-200 to-transparent transform -skew-x-12 -translate-x-full animate-pulse"></div>
                 </div>
                 
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-blue-600 mb-2">
-                      {lobbyData?.gameState?.currentBid || 0}
-                    </div>
-                    <div className="text-lg text-gray-700 mb-1">Current High Bid</div>
-                    {lobbyData?.gameState?.highBidderId && (
-                      <div className="text-sm text-gray-600">
-                        by <span className="font-semibold text-blue-700">
-                          {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || 'Unknown'}
-                        </span>
+                <div className="relative z-10">
+                  <motion.div 
+                    className="text-center mb-8"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <h3 className="text-3xl font-black text-gray-900 mb-3">
+                      🎯 Bidding Phase
+                </h3>
+                    <p className="text-gray-700 text-lg font-semibold">How many items can you list from this category?</p>
+                  </motion.div>
+                  
+                  {/* Current High Bid Display */}
+                  <div className="bg-gradient-to-r from-yellow-100 to-orange-200 rounded-3xl p-8 mb-8 shadow-lg border-2 border-yellow-300">
+                    <div className="text-center">
+                      <div className="text-5xl font-black text-orange-600 mb-3">
+                        {lobbyData?.gameState?.currentBid || 0}
                       </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex space-x-4">
-                    <input
-                      type="number"
-                      value={bidInput}
-                      onChange={(e) => setBidInput(e.target.value)}
-                      placeholder="Enter your bid"
-                      className="flex-1 input-field text-lg text-center"
-                      min={(lobbyData?.gameState?.currentBid || 0) + 1}
-                    />
-                    <button
-                      onClick={handleBid}
-                      disabled={!bidInput || parseInt(bidInput) <= (lobbyData?.gameState?.currentBid || 0)}
-                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 text-lg font-semibold"
-                    >
-                      💰 Bid
-                    </button>
+                      <div className="text-xl font-bold text-orange-800 mb-2">Current High Bid</div>
+                  {lobbyData?.gameState?.highBidderId && (
+                        <div className="text-lg font-bold text-orange-700">
+                          👑 by <span className="text-2xl">
+                            {lobbyData?.players?.[lobbyData.gameState.highBidderId]?.name || 'Unknown'}
+                    </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="flex justify-center">
-                    <button
-                      onClick={handlePass}
-                      className="btn-secondary px-8 py-3 text-lg font-semibold"
-                    >
-                      ✋ Pass
-                    </button>
-                  </div>
+                  {/* Bidding Controls */}
+                  <div className="space-y-6">
+                <div className="flex space-x-4">
+                  <input
+                    type="number"
+                    value={bidInput}
+                    onChange={(e) => setBidInput(e.target.value)}
+                        placeholder="Enter your bid"
+                        className="flex-1 text-2xl font-bold text-center py-4 px-6 border-2 border-yellow-300 rounded-2xl focus:ring-4 focus:ring-yellow-200 focus:border-yellow-500 transition-all duration-200"
+                    min={(lobbyData?.gameState?.currentBid || 0) + 1}
+                  />
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                    onClick={handleBid}
+                        disabled={!bidInput || parseInt(bidInput) <= (lobbyData?.gameState?.currentBid || 0)}
+                        className="px-8 py-4 text-2xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        💰 BID
+                      </motion.button>
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                    onClick={handlePass}
+                        className="px-8 py-4 text-2xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                      >
+                        ✋ PASS
+                      </motion.button>
+                      
                 </div>
-                
-                <div className="mt-4 text-center text-sm text-gray-600">
-                  <p>Enter a number higher than {lobbyData?.gameState?.currentBid || 0} to place a bid</p>
-                  <p className="mt-1">The winner will need to list that many items from the category!</p>
+                  </div>
+                  
+                  {/* Instructions */}
+                  <div className="mt-8 bg-gradient-to-r from-amber-50 to-orange-100 rounded-3xl p-8 shadow-xl border-2 border-amber-200">
+                    <div className="text-center space-y-4">
+                      <motion.div 
+                        className="flex items-center justify-center"
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        <span className="text-4xl mr-4">📈</span>
+                        <span className="text-xl font-bold text-amber-800">
+                          Bid higher than <span className="text-2xl font-black text-amber-900">{lobbyData?.gameState?.currentBid || 0}</span>
+                        </span>
+                      </motion.div>
+                      
+                      <div className="w-full h-px bg-gradient-to-r from-transparent via-amber-300 to-transparent"></div>
+                      
+                      <motion.div 
+                        className="flex items-center justify-center"
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
+                      >
+                        <span className="text-4xl mr-4">🎯</span>
+                        <span className="text-lg font-semibold text-amber-700">
+                          Winner lists <span className="font-black text-amber-900">that many</span> items!
+                        </span>
+                      </motion.div>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -598,84 +806,189 @@ function LobbyPageContent() {
                 key="listing-phase"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card p-8"
+                className="relative overflow-hidden bg-gradient-to-br from-white to-green-50 rounded-3xl p-8 shadow-2xl border-2 border-green-200"
               >
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    📝 Item Submission
-                  </h3>
-                  <p className="text-gray-600">List items from the category to reach your target!</p>
+                {/* Animated background pattern */}
+                <div className="absolute inset-0 opacity-5">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-green-200 to-transparent transform -skew-x-12 -translate-x-full animate-pulse"></div>
                 </div>
                 
-                {lobbyData?.gameState?.listerId === user.id ? (
-                  <div className="space-y-6">
-                    {/* Progress Bar */}
-                    <div className="bg-gray-200 rounded-full h-4 mb-4">
-                      <div 
-                        className="bg-gradient-to-r from-green-500 to-blue-500 h-4 rounded-full transition-all duration-500"
-                        style={{ 
-                          width: `${Math.min(100, ((lobbyData?.gameState?.listCount || 0) / (lobbyData?.gameState?.currentBid || 1)) * 100)}%` 
-                        }}
-                      ></div>
-                    </div>
-                    
-                    <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-blue-600">
-                        {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.currentBid || 1}
+                <div className="relative z-10">
+                  <motion.div 
+                    className="text-center mb-8"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <h3 className="text-3xl font-black text-gray-900 mb-3">
+                      📝 Item Submission
+                </h3>
+                    <p className="text-gray-700 text-lg font-semibold">List items from the category to reach your target!</p>
+                  </motion.div>
+                  
+                  {lobbyData?.gameState?.listerId === user.id ? (
+                    <div className="space-y-6">
+                      {/* Progress Bar with Animation */}
+                      <div className="bg-gray-200 rounded-full h-6 mb-6 shadow-inner">
+                        <motion.div 
+                          className="bg-gradient-to-r from-green-500 to-blue-500 h-6 rounded-full shadow-lg"
+                          style={{ 
+                            width: `${Math.min(100, (((lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length) / (lobbyData?.gameState?.currentBid || 1)) * 100)}%` 
+                          }}
+                          animate={{ 
+                            boxShadow: [
+                              '0 0 0px rgba(34, 197, 94, 0)',
+                              '0 0 20px rgba(34, 197, 94, 0.5)',
+                              '0 0 0px rgba(34, 197, 94, 0)'
+                            ]
+                          }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
                       </div>
-                      <div className="text-sm text-gray-600">Items submitted</div>
-                    </div>
-                    
+                      
+                      <div className="text-center mb-6">
+                        <motion.div 
+                          className="text-4xl font-black text-primary-600 mb-2"
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 0.5, repeat: Infinity }}
+                        >
+                          {(lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length} / {lobbyData?.gameState?.currentBid || 1}
+                        </motion.div>
+                        <div className="text-lg font-bold text-gray-600">Items submitted</div>
+                      </div>
+
                     <div className="flex space-x-4">
                       <input
                         type="text"
                         value={itemInput}
                         onChange={(e) => setItemInput(e.target.value)}
-                        placeholder="Enter item name..."
-                        className="flex-1 input-field text-lg"
+                          placeholder="Enter item name..."
+                          className="flex-1 text-xl font-bold text-center py-4 px-6 border-2 border-green-300 rounded-2xl focus:ring-4 focus:ring-green-200 focus:border-green-500 transition-all duration-200"
                         onKeyPress={(e) => e.key === 'Enter' && handleSubmitItem()}
                       />
-                      <button
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
                         onClick={handleSubmitItem}
                         disabled={!itemInput.trim()}
-                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-8 py-3 text-lg font-semibold"
+                          className="px-8 py-4 text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        ➕ Submit
-                      </button>
+                          + SUBMIT
+                        </motion.button>
                     </div>
-                    
-                    <div className="text-center text-sm text-gray-600">
-                      <p>Type items from the <span className="font-semibold text-purple-600">{(lobbyData?.category || 'category').replace('_', ' ').toUpperCase()}</span> category</p>
-                      <p className="mt-1">You need {lobbyData?.gameState?.currentBid || 1} valid items to win!</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-8">
-                      <Users className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-                      <h4 className="text-xl font-semibold text-gray-800 mb-2">
-                        Waiting for {lobbyData?.players?.[lobbyData.gameState.listerId]?.name || 'the winner'} to submit items...
-                      </h4>
-                      <p className="text-gray-600 mb-4">
-                        They need to list {lobbyData?.gameState?.currentBid || 1} items from the category
-                      </p>
-                      
-                      {lastItem && (
-                        <div className="bg-white border border-orange-200 rounded-lg p-4 mt-4">
-                          <p className="text-sm text-gray-600 mb-1">Last item submitted:</p>
-                          <p className="text-lg font-semibold text-gray-800">"{lastItem}"</p>
+
+                      {/* Submitted Items List */}
+                      {(lobbyData?.gameState?.submittedItems || []).length > 0 && (
+                        <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 shadow-lg border-2 border-blue-200">
+                          <h4 className="text-xl font-bold text-blue-800 mb-4 text-center">📝 Items Submitted</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {(lobbyData?.gameState?.submittedItems || []).map((item, index) => (
+                              <motion.div
+                                key={index}
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: index * 0.1 }}
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold text-center ${
+                                  item.isValid 
+                                    ? 'bg-green-100 text-green-800 border border-green-300' 
+                                    : 'bg-red-100 text-red-800 border border-red-300'
+                                }`}
+                              >
+                                {item.isValid ? '✅' : '❌'} {item.text}
+                              </motion.div>
+                            ))}
+                          </div>
                         </div>
                       )}
-                      
-                      <div className="mt-4">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {lobbyData?.gameState?.listCount || 0} / {lobbyData?.gameState?.currentBid || 1}
+
+                      {/* Instructions - Matching Bidding Phase Style */}
+                      <div className="mt-8 bg-gradient-to-r from-amber-50 to-orange-100 rounded-3xl p-8 shadow-xl border-2 border-amber-200">
+                        <div className="text-center space-y-6">
+                          <motion.div
+                            className="flex items-center justify-center"
+                            animate={{ scale: [1, 1.05, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <span className="text-4xl mr-4">🎯</span>
+                            <div className="text-xl font-bold text-amber-800">
+                              Type items from the <span className="text-2xl font-black text-amber-900">{(lobbyData?.category || 'category').replace('_', ' ').toUpperCase()}</span> category
+                            </div>
+                          </motion.div>
+                          
+                          <div className="w-full h-px bg-gradient-to-r from-transparent via-amber-300 to-transparent"></div>
+                          
+                          <motion.div
+                            className="flex items-center justify-center"
+                            animate={{ scale: [1, 1.05, 1] }}
+                            transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
+                          >
+                            <span className="text-4xl mr-4">🏆</span>
+                            <div className="text-lg font-semibold text-amber-700">
+                              You need <span className="text-2xl font-black text-amber-900">{lobbyData?.gameState?.currentBid || 1}</span> valid items to win!
+                            </div>
+                          </motion.div>
                         </div>
-                        <div className="text-sm text-gray-600">Items submitted so far</div>
                       </div>
-                    </div>
                   </div>
-                )}
+                ) : (
+                  <div className="text-center py-8">
+                      {/* Animated waiting state */}
+                      <motion.div 
+                        className="text-8xl mb-6"
+                        animate={{ 
+                          rotate: [0, 10, -10, 0],
+                          scale: [1, 1.1, 1]
+                        }}
+                        transition={{ 
+                          duration: 2, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        ⏳
+                      </motion.div>
+                      
+                      <motion.h4 
+                        className="text-2xl font-black text-gray-700 mb-4"
+                        animate={{ opacity: [0.7, 1, 0.7] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      >
+                        Waiting for <span className="text-primary-600">{lobbyData?.players?.[lobbyData.gameState.listerId]?.name || 'the winner'}</span> to submit items...
+                      </motion.h4>
+                      
+                      <motion.p 
+                        className="text-lg font-semibold text-gray-600 mb-6"
+                        animate={{ y: [0, -5, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        They need to list <span className="font-black text-primary-600 text-xl">{lobbyData?.gameState?.currentBid || 1}</span> items from the category
+                      </motion.p>
+                      
+                      {/* Animated progress display */}
+                      <motion.div 
+                        className="bg-gradient-to-r from-yellow-100 to-orange-200 rounded-2xl p-6 shadow-lg border-2 border-orange-300"
+                        animate={{ 
+                          scale: [1, 1.02, 1],
+                          boxShadow: [
+                            '0 4px 6px rgba(0, 0, 0, 0.1)',
+                            '0 10px 15px rgba(0, 0, 0, 0.2)',
+                            '0 4px 6px rgba(0, 0, 0, 0.1)'
+                          ]
+                        }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        <motion.div 
+                          className="text-3xl font-black text-orange-600 mb-2"
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        >
+                          {(lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length} / {lobbyData?.gameState?.currentBid || 1}
+                        </motion.div>
+                        <div className="text-sm font-bold text-orange-800">Items submitted so far</div>
+                      </motion.div>
+                    </div>
+                  )}
+
+                </div>
               </motion.div>
             )}
 
@@ -708,11 +1021,35 @@ function LobbyPageContent() {
                 className="card p-8 text-center"
               >
                 <div className="mb-8">
-                  <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4 animate-bounce" />
-                  <h3 className="text-3xl font-bold text-gray-900 mb-2">
-                    Game Complete!
-                  </h3>
-                  <p className="text-gray-600">Great job everyone!</p>
+                  <motion.div
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 5, -5, 0]
+                    }}
+                    transition={{ 
+                      duration: 2, 
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <Trophy className="w-24 h-24 text-yellow-500 mx-auto mb-4" />
+                  </motion.div>
+                  <motion.h3 
+                    className="text-5xl font-black text-gray-900 mb-4 bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  >
+                    🎉 Game Complete! 🎉
+                  </motion.h3>
+                  <motion.p 
+                    className="text-2xl font-bold text-gray-700"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    Great job everyone! 🎊
+                  </motion.p>
                 </div>
                 
                 {/* Winner announcement */}
@@ -721,46 +1058,69 @@ function LobbyPageContent() {
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="mb-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl shadow-lg"
+                    className="mb-8 p-8 bg-gradient-to-r from-yellow-100 to-orange-100 border-4 border-yellow-400 rounded-3xl shadow-2xl"
                   >
-                    <div className="flex items-center justify-center mb-3">
-                      <Trophy className="w-8 h-8 text-yellow-600 mr-2" />
-                      <h4 className="text-2xl font-bold text-yellow-800">
-                        🏆 {lobbyData?.players?.[lobbyData.gameState.winner]?.name || 'Unknown'} Wins!
-                      </h4>
-                    </div>
-                    <p className="text-lg text-yellow-700 font-semibold">
-                      Final Score: {lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] || 0} point{lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] !== 1 ? 's' : ''}
+                    <motion.div
+                      animate={{ 
+                        scale: [1, 1.05, 1],
+                        rotate: [0, 2, -2, 0]
+                      }}
+                      transition={{ 
+                        duration: 1.5, 
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                      className="flex items-center justify-center mb-4"
+                    >
+                      <Trophy className="w-16 h-16 text-yellow-600 mr-3" />
+                      <h4 className="text-4xl font-black text-yellow-800">
+                        🏆 {lobbyData?.players?.[lobbyData.gameState.winner]?.name || 'Unknown'} Wins! 🏆
+                    </h4>
+                  </motion.div>
+                    <p className="text-2xl font-bold text-yellow-700 text-center">
+                      Final Score: <span className="text-3xl font-black text-orange-600">{lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] || 0}</span> point{lobbyData?.gameState?.scores?.[lobbyData.gameState.winner] !== 1 ? 's' : ''}
                     </p>
                   </motion.div>
                 )}
                 
                 <div className="mb-8">
-                  <h4 className="text-xl font-semibold text-gray-800 mb-4">Final Results</h4>
-                  <div className="max-w-md mx-auto space-y-3">
-                    {Object.values(lobbyData?.players || {})
-                      .sort((a, b) => (lobbyData?.gameState?.scores?.[b.id] || 0) - (lobbyData?.gameState?.scores?.[a.id] || 0))
-                      .map((player, index) => (
+                  <motion.h4 
+                    className="text-3xl font-black text-gray-800 mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                  >
+                    🏅 Final Results 🏅
+                  </motion.h4>
+                  <div className="max-w-lg mx-auto space-y-4">
+                  {Object.values(lobbyData?.players || {})
+                    .sort((a, b) => (lobbyData?.gameState?.scores?.[b.id] || 0) - (lobbyData?.gameState?.scores?.[a.id] || 0))
+                    .map((player, index) => (
                       <motion.div 
                         key={player.id} 
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.5 + index * 0.1 }}
-                        className={`flex justify-between items-center py-3 px-4 rounded-lg border-2 ${
+                        className={`flex justify-between items-center py-6 px-6 rounded-2xl border-3 shadow-xl ${
                           index === 0 
-                            ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-yellow-300 font-bold shadow-md' 
-                            : 'bg-gray-50 border-gray-200'
+                            ? 'bg-gradient-to-r from-yellow-200 to-orange-200 border-yellow-400 font-bold' 
+                            : index === 1
+                            ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300'
+                            : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200'
                         }`}
+                        whileHover={{ scale: 1.02 }}
                       >
                         <div className="flex items-center">
-                          <span className="text-2xl mr-3">
+                          <span className="text-4xl mr-4">
                             {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                          </span>
-                          <span className="text-gray-900 text-lg">
+                      </span>
+                          <span className={`text-2xl font-bold ${
+                            index === 0 ? 'text-yellow-800' : 'text-gray-800'
+                          }`}>
                             {player.name}
-                          </span>
-                        </div>
-                        <span className={`text-xl font-bold ${
+                      </span>
+                    </div>
+                        <span className={`text-3xl font-black ${
                           index === 0 ? 'text-yellow-600' : 'text-gray-600'
                         }`}>
                           {lobbyData?.gameState?.scores?.[player.id] || 0}
@@ -771,45 +1131,76 @@ function LobbyPageContent() {
                 </div>
                 
                 {/* Game stats */}
-                <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h5 className="font-semibold text-blue-900 mb-2">Game Summary</h5>
-                  <div className="flex justify-center space-x-6 text-sm text-blue-800">
-                    <div>
-                      <span className="font-semibold">Category:</span> {(lobbyData?.category || 'Unknown').replace('_', ' ').toUpperCase()}
-                    </div>
-                    <div>
-                      <span className="font-semibold">High Bid:</span> {lobbyData?.gameState?.currentBid || 0}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Items Listed:</span> {lobbyData?.gameState?.listCount || 0}
-                    </div>
+                <motion.div 
+                  className="mb-8 p-8 bg-gradient-to-r from-blue-100 to-purple-100 border-3 border-blue-300 rounded-3xl shadow-xl"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                >
+                  <h5 className="text-2xl font-black text-blue-900 mb-6 text-center">📊 Game Summary 📊</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <motion.div 
+                      className="bg-white rounded-2xl p-4 shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <div className="text-3xl mb-2">🎯</div>
+                      <div className="text-lg font-bold text-blue-800">Category</div>
+                      <div className="text-xl font-black text-blue-600">{(lobbyData?.category || 'Unknown').replace('_', ' ').toUpperCase()}</div>
+                    </motion.div>
+                    <motion.div 
+                      className="bg-white rounded-2xl p-4 shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <div className="text-3xl mb-2">💰</div>
+                      <div className="text-lg font-bold text-blue-800">High Bid</div>
+                      <div className="text-xl font-black text-blue-600">{lobbyData?.gameState?.currentBid || 0}</div>
+                    </motion.div>
+                    <motion.div 
+                      className="bg-white rounded-2xl p-4 shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <div className="text-3xl mb-2">✅</div>
+                      <div className="text-lg font-bold text-blue-800">Items Listed</div>
+                      <div className="text-xl font-black text-blue-600">{(lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length}</div>
+                    </motion.div>
                   </div>
-                </div>
+                </motion.div>
                 
                 {/* Play Again Options */}
-                <div className="space-y-4">
-                  <h5 className="text-lg font-semibold text-gray-800 mb-4">What would you like to do next?</h5>
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
+                <motion.div 
+                  className="space-y-6"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.0 }}
+                >
+                  <h5 className="text-3xl font-black text-gray-800 mb-8 text-center bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                    🎮 What would you like to do next? 🎮
+                  </h5>
+                  <div className="flex flex-col sm:flex-row gap-6 justify-center">
+                    <motion.button
                       onClick={() => {
                         // Create new lobby with same category
                         const newLobbyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
                         router.push(`/lobby?category=${lobbyData?.category || 'fruits'}&action=create&code=${newLobbyCode}`);
                       }}
-                      className="btn-primary flex items-center justify-center px-6 py-3"
+                      className="flex items-center justify-center px-12 py-6 text-2xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <RotateCcw className="w-5 h-5 mr-2" />
-                      Play Again (Same Category)
-                    </button>
-                    <button
+                      <RotateCcw className="w-8 h-8 mr-3" />
+                      🔄 Play Again (Same Category)
+                    </motion.button>
+                    <motion.button
                       onClick={() => router.push('/')}
-                      className="btn-secondary flex items-center justify-center px-6 py-3"
+                      className="flex items-center justify-center px-12 py-6 text-2xl font-black bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 border-4 border-blue-400"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <Play className="w-5 h-5 mr-2" />
-                      Try Different Category
-                    </button>
+                      <Play className="w-8 h-8 mr-3" />
+                      🎯 Back to Categories (Default)
+                    </motion.button>
                   </div>
-                </div>
+                </motion.div>
               </motion.div>
             )}
           </div>
@@ -817,39 +1208,50 @@ function LobbyPageContent() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Players */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Players ({Object.keys(lobbyData?.players || {}).length}/2)
+            <div className="relative overflow-hidden bg-gradient-to-br from-white to-green-50 rounded-3xl p-6 shadow-2xl border-2 border-green-200">
+              <h3 className="text-xl font-black text-gray-900 mb-6 text-center">
+                👥 Players ({Object.keys(lobbyData?.players || {}).length}/2)
               </h3>
-              <div className="space-y-3">
-                {Object.values(lobbyData?.players || {}).map((player) => (
-                  <div key={player.id} className="flex items-center justify-between">
+              <div className="space-y-4">
+                {Object.values(lobbyData?.players || {}).map((player, index) => (
+                  <motion.div 
+                    key={player.id} 
+                    className="flex items-center justify-between bg-gradient-to-r from-white to-gray-50 rounded-2xl p-4 shadow-lg border border-gray-200"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                  >
                     <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${
+                      <motion.div 
+                        className={`w-4 h-4 rounded-full ${
                         player.connected ? 'bg-green-500' : 'bg-red-500'
-                      }`} />
-                      <span className="text-gray-900">{player.name}</span>
+                        }`}
+                        animate={{ scale: player.connected ? [1, 1.2, 1] : 1 }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      />
+                      <span className="text-gray-900 font-bold text-lg">{player.name}</span>
                       {player.ready && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <CheckCircle className="w-5 h-5 text-green-500" />
                       )}
                     </div>
-                    <span className="text-sm text-gray-600">
+                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full px-3 py-1 font-black text-lg">
                       {lobbyData?.gameState?.scores?.[player.id] || 0}
-                    </span>
                   </div>
+                  </motion.div>
                 ))}
                 {Object.keys(lobbyData?.players || {}).length < 2 && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex items-center space-x-3 opacity-50"
+                    className="flex items-center space-x-3 opacity-50 bg-gray-100 rounded-2xl p-4"
                   >
                     <motion.div 
-                      className="w-3 h-3 rounded-full bg-gray-300"
+                      className="w-4 h-4 rounded-full bg-gray-300"
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
                     />
-                    <span className="text-gray-500">Waiting for player...</span>
+                    <span className="text-gray-500 font-semibold">Waiting for player...</span>
                   </motion.div>
                 )}
               </div>
@@ -861,30 +1263,174 @@ function LobbyPageContent() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => sendMessage('start_game')}
-                  className="btn-primary w-full mt-4 py-4 text-lg font-bold flex items-center justify-center"
+                  className="w-full mt-6 py-4 text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl flex items-center justify-center hover:shadow-3xl transition-all duration-200"
                 >
-                  <Play className="w-6 h-6 mr-2" />
-                  🚀 Start Game
+                  <Play className="w-6 h-6 mr-3" />
+                  🚀 Start Battle!
                 </motion.button>
               )}
             </div>
 
-            {/* Messages */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Game Messages
+            {/* Game Messages */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-white to-purple-50 rounded-3xl p-6 shadow-2xl border-2 border-purple-200">
+              <h3 className="text-xl font-black text-gray-900 mb-6 text-center">
+                💬 Game Messages
               </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {messages.map((msg) => (
-                  <div key={msg.id} className="text-sm text-gray-600">
-                    <span className="text-gray-400">
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {messages.map((msg, index) => (
+                  <motion.div 
+                    key={msg.id} 
+                    className="bg-gradient-to-r from-white to-gray-50 rounded-2xl p-3 shadow-lg border border-gray-200"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <div className="flex items-start space-x-2">
+                      <span className="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
                       {msg.timestamp.toLocaleTimeString()}
                     </span>
-                    <span className="ml-2">{msg.message}</span>
+                      <span className="text-sm text-gray-800 font-semibold flex-1">{msg.message}</span>
                   </div>
+                  </motion.div>
                 ))}
+                {messages.length === 0 && (
+                  <div className="text-center text-gray-500 font-semibold py-8">
+                    No messages yet... Start the game! 🎮
               </div>
+                )}
             </div>
+          </div>
+
+            {/* Big Stress Timer */}
+            <div className={`relative overflow-hidden rounded-3xl p-8 shadow-2xl border-2 ${
+              lobbyData?.status === 'waiting_for_players' 
+                ? 'bg-gradient-to-br from-gray-500 to-gray-600 border-gray-400' 
+                : 'bg-gradient-to-br from-red-500 to-orange-600 border-red-400'
+            }`}>
+              <div className="text-center">
+                <motion.div
+                  animate={{ scale: timeLeft <= 10 && lobbyData?.status !== 'waiting_for_players' ? [1, 1.1, 1] : 1 }}
+                  transition={{ duration: 0.5, repeat: timeLeft <= 10 && lobbyData?.status !== 'waiting_for_players' ? Infinity : 0 }}
+                  className="mb-4"
+                >
+                  <Clock className="w-12 h-12 text-white mx-auto mb-2" />
+                  <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-wide">
+                    ⏰ Time Left
+                  </h3>
+                </motion.div>
+                
+                <motion.div
+                  className={`text-6xl font-black font-mono mb-4 ${
+                    lobbyData?.status === 'waiting_for_players' ? 'text-gray-300' :
+                    timeLeft > 0 ? (
+                      isCritical ? 'text-white' : 
+                      isWarning ? 'text-yellow-200' : 
+                      'text-white'
+                    ) : 'text-gray-300'
+                  }`}
+                  animate={{ 
+                    scale: timeLeft <= 5 && lobbyData?.status !== 'waiting_for_players' ? [1, 1.2, 1] : 1
+                  }}
+                  transition={{ duration: 0.3, repeat: timeLeft <= 5 && lobbyData?.status !== 'waiting_for_players' ? Infinity : 0 }}
+                  style={{ 
+                    textShadow: timeLeft <= 5 && lobbyData?.status !== 'waiting_for_players' ? '0 0 20px #ff0000, 0 0 40px #ff0000' : 'none',
+                    background: 'transparent'
+                  }}
+                >
+                  {lobbyData?.status === 'waiting_for_players' ? '⏸️' : 
+                   timeLeft > 0 ? formatTime(timeLeft) : '00:00'}
+                </motion.div>
+                
+                <div className="text-white font-bold text-lg">
+                  {lobbyData?.status === 'waiting_for_players' ? '⏸️ Waiting for players...' :
+                   timeLeft > 10 ? '⏳ Take your time!' : 
+                   timeLeft > 5 ? '⚡ Hurry up!' : 
+                   timeLeft > 0 ? '🚨 URGENT!' : '⏰ Time\'s up!'}
+                </div>
+              </div>
+              
+              {/* Animated background for stress effect */}
+              {lobbyData?.status !== 'waiting_for_players' && (
+                <div className="absolute inset-0 opacity-20">
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent"
+                    animate={{ x: ['-100%', '100%'] }}
+                    transition={{ duration: 2, repeat: timeLeft <= 10 ? Infinity : 0 }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            {/* Dart Board Animation - Below Timer */}
+            {submissionAnimation && (
+              <motion.div
+                className="flex items-center justify-center mt-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div
+                  className="relative"
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ 
+                    scale: [0, 1.2, 1],
+                    rotate: [180, 0, 360]
+                  }}
+                  transition={{ 
+                    duration: 1.2,
+                    ease: "easeOut"
+                  }}
+                >
+                  {/* Dart Board */}
+                  <div className="relative w-32 h-32">
+                    {/* Outer ring */}
+                    <div className="absolute inset-0 rounded-full border-8 border-gray-600 bg-gray-700"></div>
+                    {/* Middle ring */}
+                    <div className="absolute inset-4 rounded-full border-6 border-gray-500 bg-gray-600"></div>
+                    {/* Inner ring */}
+                    <div className="absolute inset-8 rounded-full border-4 border-gray-400 bg-gray-500"></div>
+                    {/* Bullseye */}
+                    <div className={`absolute inset-12 rounded-full border-2 ${
+                      lastSubmissionResult 
+                        ? 'border-yellow-400 bg-yellow-500' 
+                        : 'border-gray-300 bg-gray-400'
+                    }`}></div>
+                    {/* Center dot */}
+                    <div className={`absolute inset-16 rounded-full ${
+                      lastSubmissionResult 
+                        ? 'bg-red-600' 
+                        : 'bg-gray-300'
+                    }`}></div>
+                    
+                    {/* Dart */}
+                    <motion.div
+                      className="absolute top-2 left-1/2 w-1 h-8 bg-gray-800 transform -translate-x-1/2"
+                      initial={{ rotate: 0, y: 0 }}
+                      animate={{ 
+                        rotate: [0, 15, -15, 0],
+                        y: [0, 8, 0]
+                      }}
+                      transition={{ 
+                        duration: 0.6,
+                        delay: 0.3
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Result text */}
+                  <motion.div
+                    className={`text-center mt-4 text-2xl font-black ${
+                      lastSubmissionResult ? 'text-green-600' : 'text-red-600'
+                    }`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8 }}
+                  >
+                    {lastSubmissionResult ? '🎯 BULLSEYE!' : '❌ MISS!'}
+                  </motion.div>
+                </motion.div>
+              </motion.div>
+            )}
           </div>
         </div>
       </div>
@@ -896,7 +1442,14 @@ export default function LobbyPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: "center" }}
+          className="mx-auto"
+        >
+          <Gamepad2 className="w-12 h-12 text-primary-600" />
+        </motion.div>
       </div>
     }>
       <LobbyPageContent />

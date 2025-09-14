@@ -620,7 +620,7 @@ class GameService {
             listerId: gameState.highBidderId,
             targetCount: gameState.currentBid,
             submittedItems: [],
-            phaseEndsAt: Date.now() + (60 * 1000) // 60 seconds for listing
+            phaseEndsAt: Date.now() + (30 * 1000) // 30 seconds for listing
           };
           
           await updateDoc(lobbyRef, {
@@ -646,7 +646,7 @@ class GameService {
         lobby.gameState.listerId = lobby.gameState.highBidderId;
         lobby.gameState.targetCount = lobby.gameState.currentBid;
         lobby.gameState.submittedItems = [];
-        lobby.gameState.phaseEndsAt = Date.now() + (60 * 1000);
+        lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
         lobby.lastActivity = Date.now();
         
         localLobbies.set(lobbyId, lobby);
@@ -695,6 +695,16 @@ class GameService {
             throw new Error('Only the high bidder can submit items');
           }
           
+          // Check for duplicate submissions (case-insensitive)
+          const existingItems = gameState.submittedItems || [];
+          const isDuplicate = existingItems.some(existingItem => 
+            existingItem.text.toLowerCase() === item.toLowerCase()
+          );
+          
+          if (isDuplicate) {
+            throw new Error(`"${item}" already submitted!`);
+          }
+          
           // Validate the item against the category
           const isValid = await this.validateCategoryItem(gameState.category, item);
           
@@ -704,11 +714,12 @@ class GameService {
             timestamp: Date.now()
           };
           
-          const updatedItems = [...(gameState.submittedItems || []), submittedItem];
+          const updatedItems = [...existingItems, submittedItem];
           
           const updatedGameState = {
             ...gameState,
-            submittedItems: updatedItems
+            submittedItems: updatedItems,
+            listCount: updatedItems.length
           };
           
           await updateDoc(lobbyRef, {
@@ -751,6 +762,16 @@ class GameService {
           throw new Error('Only the high bidder can submit items');
         }
         
+        // Check for duplicate submissions (case-insensitive)
+        const existingItems = lobby.gameState.submittedItems || [];
+        const isDuplicate = existingItems.some(existingItem => 
+          existingItem.text.toLowerCase() === item.toLowerCase()
+        );
+        
+        if (isDuplicate) {
+          throw new Error(`"${item}" already submitted!`);
+        }
+        
         const isValid = await this.validateCategoryItem(lobby.gameState.category, item);
         
         const submittedItem = {
@@ -759,8 +780,9 @@ class GameService {
           timestamp: Date.now()
         };
         
-        lobby.gameState.submittedItems = lobby.gameState.submittedItems || [];
+        lobby.gameState.submittedItems = existingItems;
         lobby.gameState.submittedItems.push(submittedItem);
+        lobby.gameState.listCount = lobby.gameState.submittedItems.length;
         lobby.lastActivity = Date.now();
         
         // Check if target is reached and auto-complete listing phase
@@ -839,7 +861,7 @@ class GameService {
               scores: updatedScores,
               finalScores: updatedScores,
               winner: Object.keys(updatedScores).reduce((a, b) => updatedScores[a] > updatedScores[b] ? a : b),
-              phaseEndsAt: Date.now() + (10 * 1000), // Show results for 10 seconds, then reset
+                phaseEndsAt: Date.now() + (60 * 1000), // Show results for 60 seconds, then redirect to categories
               lastRoundResult: {
                 listerId,
                 targetCount,
@@ -850,14 +872,14 @@ class GameService {
               }
             };
             
-            // Schedule reset to lobby state after showing results
+            // Schedule redirect to categories page after showing results
             setTimeout(async () => {
               try {
-                await this.resetToLobby(lobbyId);
+                await this.redirectToCategories(lobbyId);
               } catch (error) {
-                console.error('Error resetting to lobby:', error);
+                console.error('Error redirecting to categories:', error);
               }
-            }, 10000);
+             }, 60000); // 60 seconds before redirecting to categories
           } else {
             // Continue to next round
             updatedGameState = {
@@ -1091,6 +1113,39 @@ class GameService {
         
         return lobby.gameState;
       }
+    }
+  }
+
+  // Redirect to categories page after game completion
+  async redirectToCategories(lobbyId) {
+    console.log(`Redirecting to categories page after game completion for lobby ${lobbyId}`);
+    
+    // Update lobby status to completed
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        await updateDoc(lobbyRef, {
+          status: 'completed',
+          lastActivity: Date.now()
+        });
+        console.log('Lobby marked as completed');
+      } catch (error) {
+        console.error('Error marking lobby as completed:', error);
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby) {
+        lobby.status = 'completed';
+        lobby.lastActivity = Date.now();
+        localLobbies.set(lobbyId, lobby);
+        this.triggerLocalListeners(lobbyId, lobby);
+      }
+    }
+    
+    // Redirect to categories page
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
     }
   }
 
