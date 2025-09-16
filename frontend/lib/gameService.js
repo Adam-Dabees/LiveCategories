@@ -684,18 +684,108 @@ class GameService {
   // Validate if an item belongs to the category
   async validateCategoryItem(category, item) {
     try {
+      const categoryLower = category.toLowerCase();
+      
+      // Use direct API validation for categories that support search
+      switch (categoryLower) {
+        case 'movies':
+        case 'movie':
+          const { validateMovie } = await import('../lib/categoryFetchers');
+          return await validateMovie(item);
+          
+        case 'countries':
+        case 'country':
+          const { validateCountry } = await import('../lib/categoryFetchers');
+          return await validateCountry(item);
+          
+        case 'pokemon':
+          const { validatePokemon } = await import('../lib/categoryFetchers');
+          return await validatePokemon(item);
+          
+        case 'food':
+        case 'foods':
+          const { validateFood } = await import('../lib/categoryFetchers');
+          return await validateFood(item);
+          
+        case 'animals':
+        case 'animal':
+          const { validateAnimal } = await import('../lib/categoryFetchers');
+          return await validateAnimal(item);
+          
+        case 'books':
+        case 'book':
+          const { validateBook } = await import('../lib/categoryFetchers');
+          return await validateBook(item);
+          
+        case 'music':
+          const { validateMusic } = await import('../lib/categoryFetchers');
+          return await validateMusic(item);
+          
+        case 'sports':
+        case 'sport':
+          const { validateSports } = await import('../lib/categoryFetchers');
+          return await validateSports(item);
+          
+        default:
+          // Fallback to existing logic for unknown categories
+          console.log(`Using fallback validation for category: ${category}`);
+          return await this.fallbackValidation(category, item);
+      }
+    } catch (error) {
+      console.error('Error validating category item:', error);
+      return false;
+    }
+  }
+
+  // Fallback validation method (original logic)
+  async fallbackValidation(category, item) {
+    try {
       const response = await fetch(`/api/categories/${category}`);
       if (!response.ok) {
         throw new Error('Category not found');
       }
       
       const categoryItems = await response.json();
-      const normalizedItem = item.toLowerCase().trim();
-      const normalizedCategory = categoryItems.map(catItem => catItem.toLowerCase().trim());
+      if (!Array.isArray(categoryItems)) {
+        console.error('Invalid category data format:', categoryItems);
+        return false;
+      }
       
-      return normalizedCategory.includes(normalizedItem);
+      const normalizedItem = item.toLowerCase().trim();
+      
+      // More flexible matching for API data
+      return categoryItems.some(catItem => {
+        const normalizedCatItem = catItem.toLowerCase().trim();
+        
+        // Exact match
+        if (normalizedCatItem === normalizedItem) {
+          return true;
+        }
+        
+        // Partial match for longer names (e.g., "Harry Potter" matches "Harry Potter and the Philosopher's Stone")
+        if (normalizedCatItem.includes(normalizedItem) || normalizedItem.includes(normalizedCatItem)) {
+          return true;
+        }
+        
+        // Remove common prefixes/suffixes for movies/books
+        const cleanCatItem = normalizedCatItem
+          .replace(/^the\s+/i, '')
+          .replace(/\s+the$/i, '')
+          .replace(/\s*\([^)]*\)$/, ''); // Remove year/description in parentheses
+          
+        const cleanItem = normalizedItem
+          .replace(/^the\s+/i, '')
+          .replace(/\s+the$/i, '')
+          .replace(/\s*\([^)]*\)$/, '');
+        
+        if (cleanCatItem === cleanItem) {
+          return true;
+        }
+        
+        return false;
+      });
     } catch (error) {
-      console.error('Error validating category item:', error);
+      console.error('Error in fallback validation:', error);
       return false;
     }
   }

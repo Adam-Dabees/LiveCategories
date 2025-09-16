@@ -1,6 +1,4 @@
 // pages/api/categories.js
-import fs from 'fs';
-import path from 'path';
 
 export default function handler(req, res) {
   // Set CORS headers
@@ -18,18 +16,16 @@ export default function handler(req, res) {
   }
 
   try {
-    // Read categories from the data directory
-    const categoriesPath = path.join(process.cwd(), 'data', 'categories');
-    
-    // Read all JSON files from the categories directory
-    const files = fs.readdirSync(categoriesPath);
-    const categories = files
-      .filter(file => file.endsWith('.json'))
-      .map(file => {
-        const name = file.replace('.json', '');
-        const displayName = name.charAt(0).toUpperCase() + name.slice(1);
-        return { name, displayName };
-      });
+    // Return available API-based categories
+    const categories = [
+      { name: 'countries', displayName: 'Countries' },
+      { name: 'animals', displayName: 'Animals' },
+      { name: 'books', displayName: 'Books' },
+      { name: 'movies', displayName: 'Movies' },
+      { name: 'food', displayName: 'Food' },
+      { name: 'music', displayName: 'Music' },
+      { name: 'pokemon', displayName: 'Pokemon' }
+    ];
 
     res.status(200).json(categories);
   } catch (error) {

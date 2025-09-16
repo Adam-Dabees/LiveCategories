@@ -1,8 +1,7 @@
 // pages/api/categories/[category].js
-import fs from 'fs';
-import path from 'path';
+import { getCachedCategoryData } from '../../../lib/categoryFetchers';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -20,19 +19,26 @@ export default function handler(req, res) {
   const { category } = req.query;
 
   try {
-    // Read category data from JSON file
-    const categoryFilePath = path.join(process.cwd(), 'data', 'categories', `${category}.json`);
+    // Fetch category data from external APIs with caching
+    const items = await getCachedCategoryData(category);
     
-    if (!fs.existsSync(categoryFilePath)) {
-      return res.status(404).json({ error: `Category '${category}' not found` });
+    if (!items || items.length === 0) {
+      return res.status(404).json({ error: `Category '${category}' not found or empty` });
     }
-
-    const fileContent = fs.readFileSync(categoryFilePath, 'utf8');
-    const items = JSON.parse(fileContent);
 
     res.status(200).json(items);
   } catch (error) {
     console.error(`Error loading category ${category}:`, error);
+    
+    // If the category is unknown, try to suggest available categories
+    const availableCategories = ['countries', 'books', 'movies', 'animals', 'food', 'music', 'pokemon'];
+    if (!availableCategories.includes(category.toLowerCase())) {
+      return res.status(404).json({ 
+        error: `Category '${category}' not supported`,
+        availableCategories 
+      });
+    }
+    
     res.status(500).json({ error: `Failed to load category ${category}` });
   }
 }
