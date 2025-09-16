@@ -279,6 +279,13 @@ class GameService {
         return;
       }
       
+      // Mark as being processed immediately to prevent race conditions
+      const lobbyRef = doc(db, 'lobbies', lobbyId);
+      await updateDoc(lobbyRef, {
+        'gameState.processingLeave': true,
+        lastActivity: Date.now()
+      });
+      
       // Determine winner based on scores, not just who left
       // If there are scores, use them to determine the actual winner
       let winnerId = null;
@@ -289,13 +296,24 @@ class GameService {
       console.log(`🔍 DEBUG: Available players:`, Object.keys(players));
       
       if (scores && Object.keys(scores).length > 0) {
-        // Use actual scores to determine winner
+        // Use actual scores to determine winner - be very explicit about the logic
         const scoreEntries = Object.entries(scores);
         console.log(`🔍 DEBUG: Score entries:`, scoreEntries);
         
-        winnerId = scoreEntries.reduce((a, b) => 
-          (a[1] || 0) > (b[1] || 0) ? a : b
-        )[0];
+        // Find the player with the highest score
+        let highestScore = -1;
+        let highestScorePlayer = null;
+        
+        for (const [playerId, score] of scoreEntries) {
+          const playerScore = score || 0;
+          console.log(`🔍 DEBUG: Player ${playerId} has score ${playerScore}`);
+          if (playerScore > highestScore) {
+            highestScore = playerScore;
+            highestScorePlayer = playerId;
+          }
+        }
+        
+        winnerId = highestScorePlayer;
         
         // The loser is whoever is not the winner
         loserId = scoreEntries.find(([id, score]) => id !== winnerId)?.[0] || leavingPlayerId;
@@ -358,11 +376,11 @@ class GameService {
       }
       
       // Mark the game as ended since someone left and mark as processed
-      const lobbyRef = doc(db, 'lobbies', lobbyId);
       await updateDoc(lobbyRef, {
         'gameState.phase': 'ended',
         'gameState.endedAt': Date.now(),
         'gameState.processedForLeave': true,
+        'gameState.processingLeave': false, // Clear processing flag
         'gameState.winnerId': winnerId, // Store winner ID for remaining player
         'gameState.loserId': loserId,   // Store loser ID for remaining player
         lastActivity: Date.now()
@@ -384,6 +402,12 @@ class GameService {
       const gameState = lobbyData.gameState;
       const players = lobbyData.players;
       const scores = gameState.scores || {};
+      
+      // Check if stats have already been saved for this player
+      if (gameState[`statsSavedFor_${remainingPlayerId}`]) {
+        console.log(`⚠️ Stats already saved for remaining player ${remainingPlayerId}, skipping duplicate`);
+        return;
+      }
       
       // Get winner/loser info that was stored when the other player left
       const winnerId = gameState.winnerId;
@@ -432,6 +456,13 @@ class GameService {
       console.log(`📈 Stats update result for REMAINING player ${remainingPlayerId}:`, statsResult);
       
       console.log(`✅ Successfully saved stats for remaining player ${remainingPlayerId}`);
+      
+      // Mark that stats have been saved for this player to prevent duplicates
+      const lobbyRef = doc(db, 'lobbies', lobbyId);
+      await updateDoc(lobbyRef, {
+        [`gameState.statsSavedFor_${remainingPlayerId}`]: true,
+        lastActivity: Date.now()
+      });
       
     } catch (error) {
       console.error('Error saving stats for remaining player:', error);
