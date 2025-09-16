@@ -74,10 +74,18 @@ export default function ProfilePage() {
         setStats(statsResult.data);
       }
       
-      // Load recent games
-      const gamesResult = await getUserRecentGames(user.id, 10);
-      if (gamesResult.success) {
-        setRecentGames(gamesResult.data);
+      // Load recent games (with error handling to prevent interference)
+      try {
+        const gamesResult = await getUserRecentGames(user.id, 10);
+        if (gamesResult.success) {
+          setRecentGames(gamesResult.data);
+        } else {
+          console.warn('Failed to load recent games:', gamesResult.error);
+          setRecentGames([]); // Set empty array as fallback
+        }
+      } catch (gamesError) {
+        console.warn('Error loading recent games (non-critical):', gamesError);
+        setRecentGames([]); // Set empty array as fallback
       }
     } catch (error) {
       console.error('Error loading user data:', error);

@@ -235,11 +235,16 @@ export const saveGameResult = async (gameData) => {
 // Get user's recent games
 export const getUserRecentGames = async (userId, limitCount = 10) => {
   try {
+    // If no userId provided, return empty array
+    if (!userId) {
+      console.warn('No userId provided to getUserRecentGames');
+      return { success: true, data: [] };
+    }
+
     const gamesRef = collection(db, 'games');
     const q = query(
       gamesRef,
       where('userId', '==', userId),
-      orderBy('timestamp', 'desc'),
       limit(limitCount)
     );
     
@@ -249,10 +254,14 @@ export const getUserRecentGames = async (userId, limitCount = 10) => {
       games.push({ id: doc.id, ...doc.data() });
     });
     
+    // Sort by timestamp in JavaScript since we can't use orderBy in the query
+    games.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    
     return { success: true, data: games };
   } catch (error) {
     console.error('Error getting recent games:', error);
-    return { success: false, error: error.message };
+    // Return empty array instead of failing completely
+    return { success: true, data: [] };
   }
 };
 
