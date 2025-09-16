@@ -29,6 +29,8 @@ const categoryIcons = {
   books: BookOpen,
   movies: Film,
   sports: Trophy,
+  // Fallback for any new categories
+  default: Gamepad2,
 };
 
 const categoryColors = {
@@ -39,26 +41,8 @@ const categoryColors = {
   books: 'from-purple-500 via-violet-600 to-fuchsia-600',
   movies: 'from-red-500 via-pink-600 to-rose-500',
   sports: 'from-yellow-500 via-orange-600 to-red-500',
-};
-
-const categoryNames = {
-  programming_languages: 'Code Masters',
-  countries: 'World Explorers',
-  animals: 'Wild Kingdom',
-  fruits: 'Fruit Basket',
-  books: 'Book Worms',
-  movies: 'Cinema Buffs',
-  sports: 'Sports Stars',
-};
-
-const categoryDescriptions = {
-  programming_languages: 'Test your coding knowledge!',
-  countries: 'How well do you know the world?',
-  animals: 'From pets to wild creatures!',
-  fruits: 'Name all the delicious fruits!',
-  books: 'Literary knowledge challenge!',
-  movies: 'Hollywood and beyond!',
-  sports: 'Athletes, teams, and games!',
+  // Fallback for any new categories
+  default: 'from-gray-500 via-gray-600 to-gray-700',
 };
 
 export default function HomePage() {
@@ -348,10 +332,10 @@ export default function HomePage() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
         >
           {categories.map((category, index) => {
-            const IconComponent = categoryIcons[category.name] || Code;
-            const colorClass = categoryColors[category.name] || 'from-gray-500 via-gray-600 to-gray-700';
-            const categoryName = categoryNames[category.name] || category.display_name;
-            const categoryDesc = categoryDescriptions[category.name] || category.description;
+            const IconComponent = categoryIcons[category.name] || categoryIcons.default;
+            const colorClass = categoryColors[category.name] || categoryColors.default;
+            const categoryName = category.displayName || category.display_name || category.name;
+            const categoryDesc = category.description || 'Test your knowledge!';
             
             return (
               <motion.div
@@ -452,7 +436,7 @@ export default function HomePage() {
           >
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                {selectedCategory.display_name}
+                {selectedCategory.displayName || selectedCategory.display_name || selectedCategory.name}
               </h3>
               <p className="text-gray-600 mb-3">
                 How would you like to play?

@@ -18,13 +18,13 @@ export default function handler(req, res) {
   try {
     // Return available API-based categories
     const categories = [
-      { name: 'countries', displayName: 'Countries' },
-      { name: 'animals', displayName: 'Animals' },
-      { name: 'books', displayName: 'Books' },
-      { name: 'movies', displayName: 'Movies' },
-      { name: 'food', displayName: 'Food' },
-      { name: 'music', displayName: 'Music' },
-      { name: 'pokemon', displayName: 'Pokemon' }
+      { name: 'countries', displayName: 'World Explorers', description: 'How well do you know the world?' },
+      { name: 'animals', displayName: 'Wild Kingdom', description: 'From pets to wild creatures!' },
+      { name: 'books', displayName: 'Book Worms', description: 'Literary knowledge challenge!' },
+      { name: 'movies', displayName: 'Cinema Buffs', description: 'Hollywood and beyond!' },
+      { name: 'fruits', displayName: 'Fruit Basket', description: 'Name all the delicious fruits!' },
+      { name: 'sports', displayName: 'Sports Stars', description: 'Athletes, teams, and games!' },
+      { name: 'programming_languages', displayName: 'Code Masters', description: 'Test your coding knowledge!' }
     ];
 
     res.status(200).json(categories);
