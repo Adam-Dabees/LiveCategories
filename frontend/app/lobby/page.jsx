@@ -312,13 +312,20 @@ function LobbyPageContent() {
           
           // Check if this game was ended due to player leaving
           if (lobbyData?.gameState?.processedForLeave && lobbyData?.gameState?.winnerId) {
-            console.log('Game ended due to player leaving, saving stats for remaining player');
+            console.log('🎮 Game ended due to player leaving, saving stats for remaining player');
+            console.log('🔍 DEBUG: Winner ID from game state:', lobbyData.gameState.winnerId);
+            console.log('🔍 DEBUG: Loser ID from game state:', lobbyData.gameState.loserId);
+            console.log('🔍 DEBUG: Current user ID:', user.id);
+            console.log('🔍 DEBUG: Remaining player should be:', lobbyData.gameState.winnerId === user.id ? 'WINNER' : 'LOSER');
+            
             try {
               await gameService.saveRemainingPlayerStats(currentLobbyCode, user.id, lobbyData);
-              console.log('Stats saved for remaining player');
+              console.log('✅ Stats saved for remaining player');
             } catch (error) {
-              console.error('Error saving stats for remaining player:', error);
+              console.error('❌ Error saving stats for remaining player:', error);
             }
+          } else {
+            console.log('ℹ️ Game ended normally (not due to player leaving)');
           }
           
           // Redirect to categories page

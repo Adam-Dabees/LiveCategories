@@ -284,20 +284,31 @@ class GameService {
       let winnerId = null;
       let loserId = leavingPlayerId;
       
+      console.log(`🔍 DEBUG: Determining winner/loser for leaving player ${leavingPlayerId}`);
+      console.log(`🔍 DEBUG: Available scores:`, scores);
+      console.log(`🔍 DEBUG: Available players:`, Object.keys(players));
+      
       if (scores && Object.keys(scores).length > 0) {
         // Use actual scores to determine winner
-        winnerId = Object.keys(scores).reduce((a, b) => 
-          (scores[a] || 0) > (scores[b] || 0) ? a : b
-        );
+        const scoreEntries = Object.entries(scores);
+        console.log(`🔍 DEBUG: Score entries:`, scoreEntries);
+        
+        winnerId = scoreEntries.reduce((a, b) => 
+          (a[1] || 0) > (b[1] || 0) ? a : b
+        )[0];
+        
         // The loser is whoever is not the winner
-        loserId = Object.keys(scores).find(id => id !== winnerId) || leavingPlayerId;
+        loserId = scoreEntries.find(([id, score]) => id !== winnerId)?.[0] || leavingPlayerId;
+        
         console.log(`🏆 Winner determined by scores: ${winnerId} (score: ${scores[winnerId]})`);
         console.log(`❌ Loser determined by scores: ${loserId} (score: ${scores[loserId]})`);
+        console.log(`🔍 DEBUG: Leaving player ${leavingPlayerId} is ${winnerId === leavingPlayerId ? 'WINNER' : 'LOSER'}`);
       } else {
         // Fallback: remaining player wins if no scores
         const remainingPlayers = Object.keys(players).filter(id => id !== leavingPlayerId);
         winnerId = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
         console.log(`🏆 No scores available, remaining player wins: ${winnerId}`);
+        console.log(`🔍 DEBUG: Leaving player ${leavingPlayerId} is LOSER (no scores)`);
       }
       
       console.log(`👥 All players:`, Object.keys(players));
@@ -387,6 +398,9 @@ class GameService {
       
       // Determine if the remaining player won or lost
       const isRemainingPlayerWinner = winnerId === remainingPlayerId;
+      
+      console.log(`🔍 DEBUG: Remaining player ${remainingPlayerId} is ${isRemainingPlayerWinner ? 'WINNER' : 'LOSER'}`);
+      console.log(`🔍 DEBUG: Winner ID: ${winnerId}, Remaining player ID: ${remainingPlayerId}, Match: ${winnerId === remainingPlayerId}`);
       
       // Import stats functions
       const { updateUserStats, saveGameResult } = await import('./firestore');
