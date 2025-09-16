@@ -165,14 +165,18 @@ export default function HomePage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "center" }}
-          className="mx-auto"
-        >
-          <Gamepad2 className="w-12 h-12 text-primary-600" />
-        </motion.div>
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="w-16 h-16 flex items-center justify-center">
+            <Gamepad2 className="w-12 h-12 text-primary-600" />
+          </div>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-gray-600 text-lg font-medium"
+          >
+            {loading ? 'Creating lobby...' : 'Loading...'}
+          </motion.p>
+        </div>
       </div>
     );
   }

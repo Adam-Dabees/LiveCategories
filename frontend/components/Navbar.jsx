@@ -36,8 +36,26 @@ export default function Navbar() {
     }
   };
 
-  const confirmLeave = () => {
+  const confirmLeave = async () => {
     setShowLeaveConfirm(false);
+    
+    // If we're in a lobby, properly leave it first
+    if (window.location.pathname.startsWith('/lobby')) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const lobbyCode = urlParams.get('lobbyCode') || urlParams.get('code');
+        
+        if (lobbyCode && user) {
+          // Import gameService and call leaveLobby
+          const gameService = (await import('../lib/gameService')).default;
+          await gameService.leaveLobby(lobbyCode, user.id);
+          console.log('Successfully left lobby and saved stats');
+        }
+      } catch (error) {
+        console.error('Error leaving lobby:', error);
+      }
+    }
+    
     router.push('/');
   };
 

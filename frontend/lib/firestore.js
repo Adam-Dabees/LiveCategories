@@ -69,12 +69,17 @@ export const getUserStats = async (userId) => {
 // Update user statistics after a game
 export const updateUserStats = async (userId, gameData) => {
   try {
+    console.log(`📊 Updating stats for user ${userId} with data:`, gameData);
+    
     const statsRef = doc(db, 'userStats', userId);
     const statsSnap = await getDoc(statsRef);
     
     let currentStats = {};
     if (statsSnap.exists()) {
       currentStats = statsSnap.data();
+      console.log(`📊 Current stats for ${userId}:`, currentStats);
+    } else {
+      console.log(`📊 No existing stats for ${userId}, creating new`);
     }
 
     const isWin = gameData.won;
@@ -84,18 +89,51 @@ export const updateUserStats = async (userId, gameData) => {
     const newTotalScore = (currentStats.totalScore || 0) + gameData.score;
     const newAverageScore = newTotalScore / newTotalGames;
     
+    console.log(`📊 Calculated stats:`, { 
+      isWin, 
+      newTotalGames, 
+      newGamesWon, 
+      newWinRate, 
+      newTotalScore, 
+      newAverageScore 
+    });
+    
     // Update win streak
     let newCurrentStreak = 0;
     let newLongestStreak = currentStats.longestWinStreak || 0;
+    const previousStreak = currentStats.currentWinStreak || 0;
+    
+    console.log(`📊 STREAK CALCULATION for ${userId}:`, {
+      isWin,
+      previousStreak,
+      longestStreak: newLongestStreak,
+      currentStats: {
+        currentWinStreak: currentStats.currentWinStreak,
+        longestWinStreak: currentStats.longestWinStreak,
+        totalGames: currentStats.totalGames,
+        gamesWon: currentStats.gamesWon
+      }
+    });
     
     if (isWin) {
-      newCurrentStreak = (currentStats.currentWinStreak || 0) + 1;
+      // Player won - increment current streak
+      newCurrentStreak = previousStreak + 1;
+      // Update longest streak if current streak is higher
       if (newCurrentStreak > newLongestStreak) {
         newLongestStreak = newCurrentStreak;
       }
+      console.log(`✅ WIN: Streak incremented from ${previousStreak} to ${newCurrentStreak}`);
     } else {
+      // Player lost - reset current streak to 0
       newCurrentStreak = 0;
+      console.log(`❌ LOSS: Streak reset from ${previousStreak} to 0`);
     }
+    
+    console.log(`📊 FINAL STREAK VALUES:`, { 
+      newCurrentStreak, 
+      newLongestStreak, 
+      previousStreak
+    });
 
     // Update category tracking
     const categoriesPlayed = currentStats.categoriesPlayed || [];
@@ -130,8 +168,48 @@ export const updateUserStats = async (userId, gameData) => {
       updatedAt: serverTimestamp()
     };
 
-    await setDoc(statsRef, updateData, { merge: true });
-    return { success: true, data: updateData };
+    console.log(`📊 Final update data for ${userId}:`, updateData);
+    
+    // First, get the current document to ensure we have the latest data
+    const currentSnap = await getDoc(statsRef);
+    let finalStats = {};
+    
+    if (currentSnap.exists()) {
+      finalStats = currentSnap.data();
+      console.log(`📊 Current stats before merge for ${userId}:`, finalStats);
+    }
+    
+    // Merge the new data with existing data
+    const mergedData = {
+      ...finalStats,
+      ...updateData,
+      // Ensure these specific fields are updated correctly
+      totalGames: updateData.totalGames,
+      gamesWon: updateData.gamesWon,
+      winRate: updateData.winRate,
+      totalScore: updateData.totalScore,
+      averageScore: updateData.averageScore,
+      longestWinStreak: updateData.longestWinStreak,
+      currentWinStreak: updateData.currentWinStreak,
+      favoriteCategory: updateData.favoriteCategory,
+      categoriesPlayed: updateData.categoriesPlayed,
+      updatedAt: updateData.updatedAt
+    };
+    
+    console.log(`📊 Merged data for ${userId}:`, mergedData);
+    
+    // Use setDoc to save the merged data
+    await setDoc(statsRef, mergedData);
+    
+    // Verify the update worked by reading back the data
+    const verifySnap = await getDoc(statsRef);
+    if (verifySnap.exists()) {
+      const verifiedData = verifySnap.data();
+      console.log(`✅ Verified stats after update for ${userId}:`, verifiedData);
+    }
+    
+    console.log(`✅ Successfully updated stats for ${userId}`);
+    return { success: true, data: mergedData };
   } catch (error) {
     console.error('Error updating user stats:', error);
     return { success: false, error: error.message };

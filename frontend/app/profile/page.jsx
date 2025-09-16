@@ -1,55 +1,86 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserStats } from '../../lib/firestore';
+import { getUserStats, getUserRecentGames } from '../../lib/firestore';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
   Target, 
   TrendingUp, 
   Award, 
-  BarChart3,
   Calendar,
+  BarChart3,
   Star,
   Zap,
+  Crown,
+  Medal,
+  Flame,
   Gamepad2
 } from 'lucide-react';
 
+const achievementIcons = {
+  first_win: Trophy,
+  streak_master: Flame,
+  century_club: Target,
+  veteran: Medal,
+  category_expert: Star,
+  speed_demon: Zap,
+  perfectionist: Award,
+  social_butterfly: Crown
+};
+
+const achievementNames = {
+  first_win: 'First Victory',
+  streak_master: 'Streak Master',
+  century_club: 'Century Club',
+  veteran: 'Veteran',
+  category_expert: 'Category Expert',
+  speed_demon: 'Speed Demon',
+  perfectionist: 'Perfectionist',
+  social_butterfly: 'Social Butterfly'
+};
+
+const achievementDescriptions = {
+  first_win: 'Win your first game',
+  streak_master: 'Win 5 games in a row',
+  century_club: 'Score 100+ total points',
+  veteran: 'Play 50+ games',
+  category_expert: 'Win 10 games in one category',
+  speed_demon: 'List 20+ items in 30 seconds',
+  perfectionist: 'Get 100% accuracy in a game',
+  social_butterfly: 'Play 50+ games'
+};
+
 export default function ProfilePage() {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const router = useRouter();
+  const [stats, setStats] = useState(null);
+  const [recentGames, setRecentGames] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-      return;
+    if (user) {
+      loadUserData();
     }
-    loadStats();
-  }, [user, router]);
+  }, [user]);
 
-  const loadStats = async () => {
+  const loadUserData = async () => {
     try {
-      const result = await getUserStats(user.id);
-      if (result.success) {
-        // Convert Firestore field names to match your UI
-        const firestoreStats = result.data;
-        setStats({
-          total_games: firestoreStats.totalGames || 0,
-          games_won: firestoreStats.gamesWon || 0,
-          win_rate: firestoreStats.winRate || 0,
-          total_score: firestoreStats.totalScore || 0,
-          average_score: firestoreStats.averageScore || 0,
-          longest_win_streak: firestoreStats.longestWinStreak || 0,
-          current_win_streak: firestoreStats.currentWinStreak || 0,
-          favorite_category: firestoreStats.favoriteCategory || null
-        });
+      setLoading(true);
+      
+      // Load user stats
+      const statsResult = await getUserStats(user.id);
+      if (statsResult.success) {
+        setStats(statsResult.data);
+      }
+      
+      // Load recent games
+      const gamesResult = await getUserRecentGames(user.id, 10);
+      if (gamesResult.success) {
+        setRecentGames(gamesResult.data);
       }
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('Error loading user data:', error);
     } finally {
       setLoading(false);
     }
@@ -58,220 +89,247 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "center" }}
-          className="mx-auto"
-        >
-          <Gamepad2 className="w-12 h-12 text-primary-600" />
-        </motion.div>
+        <div className="flex flex-col items-center space-y-4">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 flex items-center justify-center"
+          >
+            <Gamepad2 className="w-12 h-12 text-primary-600" />
+          </motion.div>
+          <p className="text-gray-600 text-lg font-medium">Loading your profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (!user) {
-    return null;
+  if (!stats) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Profile Not Found</h1>
+          <p className="text-gray-600">Unable to load your profile data.</p>
+        </div>
+      </div>
+    );
   }
 
-  const statCards = [
-    {
-      title: 'Total Games',
-      value: stats?.total_games || 0,
-      icon: Target,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-    },
-    {
-      title: 'Games Won',
-      value: stats?.games_won || 0,
-      icon: Trophy,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-    },
-    {
-      title: 'Win Rate',
-      value: `${stats?.win_rate || 0}%`,
-      icon: TrendingUp,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-    },
-    {
-      title: 'Total Score',
-      value: stats?.total_score || 0,
-      icon: BarChart3,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
-    },
-    {
-      title: 'Average Score',
-      value: stats?.average_score || 0,
-      icon: Star,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
-    },
-    {
-      title: 'Current Streak',
-      value: stats?.current_win_streak || 0,
-      icon: Zap,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Welcome back, {user?.displayName || user?.email}!
+          </h1>
+          <p className="text-xl text-gray-600">Your gaming journey and achievements</p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Stats Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            transition={{ delay: 0.1 }}
+            className="lg:col-span-2 space-y-6"
           >
-            <div className="w-24 h-24 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trophy className="w-12 h-12 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {user.display_name || user.username}'s Statistics
-            </h1>
-            <p className="text-gray-600">
-              Track your performance and achievements
-            </p>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {statCards.map((stat, index) => {
-            const IconComponent = stat.icon;
-            return (
-              <motion.div
-                key={stat.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                className="card p-6"
-              >
+            {/* Main Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">
-                      {stat.title}
-                    </p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {stat.value}
-                    </p>
+                    <p className="text-sm font-medium text-gray-600">Total Games</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.totalGames || 0}</p>
                   </div>
-                  <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}>
-                    <IconComponent className={`w-6 h-6 ${stat.color}`} />
+                  <div className="p-3 bg-blue-100 rounded-full">
+                    <Gamepad2 className="w-6 h-6 text-blue-600" />
                   </div>
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
+              </div>
 
-        {/* Additional Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
-        >
-          {/* Longest Win Streak */}
-          <div className="card p-6">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center">
-                <Award className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Longest Win Streak
-                </h3>
-                <p className="text-3xl font-bold text-yellow-600">
-                  {stats?.longest_win_streak || 0}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Consecutive victories
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Favorite Category */}
-          <div className="card p-6">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl flex items-center justify-center">
-                <BarChart3 className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Favorite Category
-                </h3>
-                <p className="text-xl font-bold text-purple-600">
-                  {stats?.favorite_category || 'None yet'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Most played category
-                </p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Achievements Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          className="mt-8"
-        >
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Achievements</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { name: 'First Win', description: 'Win your first game', unlocked: (stats?.games_won || 0) > 0 },
-              { name: 'Streak Master', description: 'Win 5 games in a row', unlocked: (stats?.longest_win_streak || 0) >= 5 },
-              { name: 'Century Club', description: 'Score 100+ total points', unlocked: (stats?.total_score || 0) >= 100 },
-              { name: 'Veteran', description: 'Play 50+ games', unlocked: (stats?.total_games || 0) >= 50 },
-            ].map((achievement, index) => (
-              <motion.div
-                key={achievement.name}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, delay: 0.9 + index * 0.1 }}
-                className={`p-4 rounded-lg border-2 ${
-                  achievement.unlocked
-                    ? 'border-yellow-400 bg-yellow-50'
-                    : 'border-gray-200 bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    achievement.unlocked ? 'bg-yellow-400' : 'bg-gray-300'
-                  }`}>
-                    <Trophy className={`w-4 h-4 ${
-                      achievement.unlocked ? 'text-white' : 'text-gray-500'
-                    }`} />
-                  </div>
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h4 className={`font-medium ${
-                      achievement.unlocked ? 'text-yellow-800' : 'text-gray-500'
-                    }`}>
-                      {achievement.name}
-                    </h4>
-                    <p className={`text-sm ${
-                      achievement.unlocked ? 'text-yellow-600' : 'text-gray-400'
-                    }`}>
-                      {achievement.description}
-                    </p>
+                    <p className="text-sm font-medium text-gray-600">Games Won</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.gamesWon || 0}</p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-full">
+                    <Trophy className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Win Rate</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.winRate || 0}%</p>
+                  </div>
+                  <div className="p-3 bg-yellow-100 rounded-full">
+                    <Target className="w-6 h-6 text-yellow-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Score</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.totalScore || 0}</p>
+                  </div>
+                  <div className="p-3 bg-purple-100 rounded-full">
+                    <BarChart3 className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Streaks */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-orange-100">Current Streak</p>
+                    <p className="text-3xl font-bold">{stats.currentWinStreak || 0}</p>
+                  </div>
+                  <Flame className="w-8 h-8 text-orange-200" />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-100">Best Streak</p>
+                    <p className="text-3xl font-bold">{stats.longestWinStreak || 0}</p>
+                  </div>
+                  <Crown className="w-8 h-8 text-blue-200" />
+                </div>
+              </div>
+            </div>
+
+            {/* Category Performance */}
+            {stats.categoriesPlayed && stats.categoriesPlayed.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Category Performance</h3>
+                <div className="space-y-3">
+                  {stats.categoriesPlayed.map((category, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900 capitalize">{category.name}</p>
+                        <p className="text-sm text-gray-600">{category.games} games, {category.wins} wins</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">
+                          {category.games > 0 ? Math.round((category.wins / category.games) * 100) : 0}%
+                        </p>
+                        <p className="text-sm text-gray-600">win rate</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Games */}
+            {recentGames.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Games</h3>
+                <div className="space-y-3">
+                  {recentGames.slice(0, 5).map((game, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${game.won ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div>
+                          <p className="font-medium text-gray-900 capitalize">{game.category}</p>
+                          <p className="text-sm text-gray-600">
+                            {new Date(game.timestamp?.seconds * 1000 || game.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">{game.score} pts</p>
+                        <p className="text-sm text-gray-600">{game.won ? 'Won' : 'Lost'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Achievements Sidebar */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-6"
+          >
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <Award className="w-6 h-6 mr-2 text-yellow-500" />
+                Achievements
+              </h3>
+              
+              {stats.achievements && stats.achievements.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.achievements.map((achievement, index) => {
+                    const IconComponent = achievementIcons[achievement] || Award;
+                    return (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center space-x-3 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200"
+                      >
+                        <div className="p-2 bg-yellow-100 rounded-full">
+                          <IconComponent className="w-5 h-5 text-yellow-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {achievementNames[achievement] || achievement}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {achievementDescriptions[achievement] || 'Achievement unlocked!'}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No achievements yet</p>
+                  <p className="text-sm text-gray-400">Keep playing to unlock achievements!</p>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Stats */}
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-6 text-white">
+              <h3 className="text-xl font-bold mb-4">Quick Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-purple-100">Average Score</span>
+                  <span className="font-bold">{stats.averageScore || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-purple-100">Favorite Category</span>
+                  <span className="font-bold capitalize">{stats.favoriteCategory || 'None'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-purple-100">Total Categories</span>
+                  <span className="font-bold">{stats.categoriesPlayed?.length || 0}</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

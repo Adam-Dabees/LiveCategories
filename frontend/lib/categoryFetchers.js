@@ -58,6 +58,11 @@ export async function validateMovie(movieTitle) {
   try {
     const apiKey = process.env.OMDB_API_KEY;
     
+    if (!apiKey) {
+      console.warn('OMDB_API_KEY not found, using fallback validation');
+      return fallbackMovieValidation(movieTitle);
+    }
+    
     // Search for exactly what the user typed
     const searchResponse = await fetch(`http://www.omdbapi.com/?apikey=${apiKey}&s=${encodeURIComponent(movieTitle)}&type=movie`);
     
@@ -76,8 +81,52 @@ export async function validateMovie(movieTitle) {
     
   } catch (error) {
     console.error('Error validating movie:', error);
+    return fallbackMovieValidation(movieTitle);
+  }
+}
+
+// Fallback validation for movies when API fails or key is missing
+function fallbackMovieValidation(movieTitle) {
+  console.log(`⚠️ Using fallback validation for movie "${movieTitle}"`);
+  
+  // Basic validation - check if it looks like a movie title
+  const cleanTitle = movieTitle.trim().toLowerCase();
+  
+  // Must be at least 2 characters
+  if (cleanTitle.length < 2) {
     return false;
   }
+  
+  // Check against a curated list of popular movies
+  const popularMovies = [
+    'the shawshank redemption', 'the godfather', 'the dark knight', 'pulp fiction',
+    'forrest gump', 'inception', 'the matrix', 'goodfellas', 'the lord of the rings',
+    'star wars', 'casablanca', 'titanic', 'avatar', 'jurassic park', 'jaws',
+    'e.t.', 'the lion king', 'toy story', 'finding nemo', 'the avengers',
+    'iron man', 'spider-man', 'batman', 'superman', 'wonder woman',
+    'black panther', 'captain america', 'thor', 'guardians of the galaxy',
+    'deadpool', 'x-men', 'fantastic four', 'the incredibles', 'frozen',
+    'back to the future', 'raiders of the lost ark', 'rocky', 'alien',
+    'terminator', 'die hard', 'top gun', 'mission impossible', 'james bond',
+    'fast and furious', 'transformers', 'pirates of the caribbean',
+    'harry potter', 'lord of the rings', 'game of thrones', 'breaking bad',
+    'the walking dead', 'stranger things', 'friends', 'the office', 'seinfeld'
+  ];
+  
+  // Check for exact match or partial match
+  const isMatch = popularMovies.some(movie => 
+    movie === cleanTitle || 
+    movie.includes(cleanTitle) || 
+    cleanTitle.includes(movie)
+  );
+  
+  if (isMatch) {
+    console.log(`✅ Movie "${movieTitle}" found in fallback list - awarding point`);
+    return true;
+  }
+  
+  console.log(`❌ Movie "${movieTitle}" not found in fallback validation`);
+  return false;
 }
 
 /**
@@ -519,6 +568,36 @@ export async function fetchFoods() {
 }
 
 /**
+ * Fetch fruits - using a curated list since there's no specific fruits API
+ */
+export async function fetchFruits() {
+  try {
+    // Curated list of fruits - you can expand this or use an API if available
+    return [
+      'Apple', 'Banana', 'Orange', 'Grape', 'Strawberry', 'Blueberry', 'Raspberry',
+      'Blackberry', 'Cherry', 'Peach', 'Pear', 'Plum', 'Apricot', 'Mango',
+      'Pineapple', 'Watermelon', 'Cantaloupe', 'Honeydew', 'Kiwi', 'Papaya',
+      'Pomegranate', 'Coconut', 'Avocado', 'Lemon', 'Lime', 'Grapefruit',
+      'Clementine', 'Tangerine', 'Mandarin', 'Cranberry', 'Gooseberry', 'Elderberry',
+      'Fig', 'Date', 'Raisin', 'Prune', 'Persimmon', 'Passion Fruit', 'Dragon Fruit',
+      'Star Fruit', 'Guava', 'Lychee', 'Rambutan', 'Durian', 'Jackfruit',
+      'Plantain', 'Custard Apple', 'Soursop', 'Cherimoya', 'Pitaya', 'Acerola',
+      'Mulberry', 'Boysenberry', 'Loganberry', 'Tayberry', 'Cloudberry', 'Lingonberry',
+      'Cranberry', 'Huckleberry', 'Serviceberry', 'Juniper Berry', 'Goji Berry',
+      'Acai Berry', 'Maqui Berry', 'Sea Buckthorn', 'Elderberry', 'Rowan Berry'
+    ].sort();
+  } catch (error) {
+    console.error('Error fetching fruits:', error);
+    // Fallback to basic fruits
+    return [
+      'Apple', 'Banana', 'Orange', 'Grape', 'Strawberry', 'Blueberry', 'Cherry',
+      'Peach', 'Pear', 'Plum', 'Mango', 'Pineapple', 'Watermelon', 'Kiwi',
+      'Lemon', 'Lime', 'Grapefruit', 'Coconut', 'Avocado', 'Pomegranate'
+    ];
+  }
+}
+
+/**
  * Fetch music artists/bands from Last.fm API (simplified version)
  */
 export async function fetchMusic() {
@@ -583,6 +662,8 @@ export async function fetchCategoryData(category) {
     case 'food':
     case 'foods':
       return await fetchFoods();
+    case 'fruits':
+      return await fetchFruits();
     case 'music':
       return await fetchMusic();
     case 'pokemon':

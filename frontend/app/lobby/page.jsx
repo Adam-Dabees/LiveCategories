@@ -92,13 +92,13 @@ function LobbyPageContent() {
       // Mark player as disconnected when leaving
       const currentLobbyCode = lobbyCode || code;
       if (currentLobbyCode && user) {
-        gameService.updatePlayerConnection(currentLobbyCode, user.id, false).catch(console.error);
+        // Only call leaveLobby - it will handle both stats saving and disconnection
+        gameService.leaveLobby(currentLobbyCode, user.id).catch(console.error);
       }
     };
   }, [user, lobbyCode, code]); // Dependencies for lobby initialization
 
   const startTimer = () => {
-    console.log('startTimer called');
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -106,30 +106,10 @@ function LobbyPageContent() {
     timerRef.current = setInterval(() => {
       // Only start timer if we have a phaseEndsAt and we're not waiting for players
       if (lobbyData?.gameState?.phaseEndsAt && lobbyData?.status !== 'waiting_for_players') {
-        console.log('Timer tick:', { 
-          phaseEndsAt: lobbyData.gameState.phaseEndsAt, 
-          now: Date.now(),
-          status: lobbyData.status 
-        });
         const now = Date.now(); // Already in milliseconds
         const timeLeftMs = Math.max(0, lobbyData.gameState.phaseEndsAt - now);
         const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
         setTimeLeft(timeLeftSeconds);
-        
-        // Debug: Log every 5 seconds to see if timer is working
-        if (timeLeftSeconds % 5 === 0 && timeLeftSeconds > 0) {
-          console.log(`Timer: ${timeLeftSeconds}s remaining, phase: ${lobbyData?.gameState?.phase}`);
-        }
-        
-        // Debug: Log when timer is close to zero
-        if (timeLeftSeconds <= 3) {
-          console.log(`Timer almost zero: ${timeLeftSeconds}s remaining`);
-        }
-        
-        // Debug: Log every second in the last 10 seconds
-        if (timeLeftSeconds <= 10) {
-          console.log(`Timer: ${timeLeftSeconds}s remaining`);
-        }
         
         
         if (timeLeftSeconds <= 5) {
@@ -145,11 +125,6 @@ function LobbyPageContent() {
 
         // Handle phase transitions when time runs out
         if (timeLeftSeconds <= 0) {
-          console.log('Timer reached zero, calling handlePhaseTimeout...');
-          console.log('Current game state:', lobbyData?.gameState);
-          console.log('Phase:', lobbyData?.gameState?.phase);
-          console.log('High bidder ID:', lobbyData?.gameState?.highBidderId);
-          console.log('Current bid:', lobbyData?.gameState?.currentBid);
           clearInterval(timerRef.current);
           handlePhaseTimeout();
         }
@@ -170,14 +145,12 @@ function LobbyPageContent() {
     });
     
     if (lobbyData?.gameState?.phaseEndsAt) {
-      console.log('Starting timer...');
       startTimer();
     }
     
     // Cleanup timer when component unmounts or phase changes
     return () => {
       if (timerRef.current) {
-        console.log('Cleaning up timer...');
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
