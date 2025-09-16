@@ -609,16 +609,29 @@ class GameService {
           const lobbyData = lobbySnap.data();
           const gameState = lobbyData.gameState;
           
-          if (!gameState.highBidderId) {
-            throw new Error('No bids were placed');
+          // If no bids were placed, set a default bidder (first player) and minimum bid
+          let highBidderId = gameState.highBidderId;
+          let currentBid = gameState.currentBid;
+          
+          if (!highBidderId || currentBid === 0) {
+            const players = Object.keys(lobbyData.players || {});
+            if (players.length > 0) {
+              highBidderId = players[0]; // Use first player as default
+              currentBid = 1; // Set minimum bid
+              console.log(`No bids placed, setting default bidder: ${highBidderId} with bid: ${currentBid}`);
+            } else {
+              throw new Error('No players found in lobby');
+            }
           }
           
           // Transition to listing phase
           const updatedGameState = {
             ...gameState,
             phase: 'listing',
-            listerId: gameState.highBidderId,
-            targetCount: gameState.currentBid,
+            listerId: highBidderId,
+            highBidderId: highBidderId,
+            currentBid: currentBid,
+            targetCount: currentBid,
             submittedItems: [],
             phaseEndsAt: Date.now() + (30 * 1000) // 30 seconds for listing
           };
@@ -638,13 +651,26 @@ class GameService {
       // Local storage fallback
       let lobby = localLobbies.get(lobbyId);
       if (lobby && lobby.gameState) {
-        if (!lobby.gameState.highBidderId) {
-          throw new Error('No bids were placed');
+        let highBidderId = lobby.gameState.highBidderId;
+        let currentBid = lobby.gameState.currentBid;
+        
+        // If no bids were placed, set a default bidder (first player) and minimum bid
+        if (!highBidderId || currentBid === 0) {
+          const players = Object.keys(lobby.players || {});
+          if (players.length > 0) {
+            highBidderId = players[0]; // Use first player as default
+            currentBid = 1; // Set minimum bid
+            console.log(`No bids placed, setting default bidder: ${highBidderId} with bid: ${currentBid}`);
+          } else {
+            throw new Error('No players found in lobby');
+          }
         }
         
         lobby.gameState.phase = 'listing';
-        lobby.gameState.listerId = lobby.gameState.highBidderId;
-        lobby.gameState.targetCount = lobby.gameState.currentBid;
+        lobby.gameState.listerId = highBidderId;
+        lobby.gameState.highBidderId = highBidderId;
+        lobby.gameState.currentBid = currentBid;
+        lobby.gameState.targetCount = currentBid;
         lobby.gameState.submittedItems = [];
         lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
         lobby.lastActivity = Date.now();

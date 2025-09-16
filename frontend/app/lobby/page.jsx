@@ -323,17 +323,11 @@ function LobbyPageContent() {
       });
       
       if (phase === 'bidding') {
-        // If no bids were placed, restart bidding
-        if (!lobbyData?.gameState?.highBidderId || lobbyData?.gameState?.currentBid === 0) {
-          console.log('No bids placed, restarting bidding phase');
-          addMessage('No bids placed, restarting bidding phase...');
-          await gameService.startGame(currentLobbyCode); // Restart bidding
-        } else {
-          // Transition to listing phase
-          console.log('Transitioning to listing phase');
-          addMessage('Bidding time expired, moving to listing phase');
-          await gameService.transitionToListing(currentLobbyCode);
-        }
+        // Always transition to listing phase when bidding time expires
+        // The transitionToListing method will handle setting a default bidder if no bids were placed
+        console.log('Bidding time expired, transitioning to listing phase');
+        addMessage('Bidding time expired, moving to listing phase');
+        await gameService.transitionToListing(currentLobbyCode);
       } else if (phase === 'listing') {
         // Complete listing phase and calculate scores
         console.log('Completing listing phase');
