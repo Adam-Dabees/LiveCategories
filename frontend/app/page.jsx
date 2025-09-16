@@ -18,11 +18,12 @@ import {
   BookOpen,
   Film,
   Trophy,
-  Gamepad2
+  Gamepad2,
+  Music
 } from 'lucide-react';
 
 const categoryIcons = {
-  programming_languages: Code,
+  music: Music,
   countries: Globe,
   animals: Heart,
   fruits: Apple,
@@ -34,11 +35,11 @@ const categoryIcons = {
 };
 
 const categoryColors = {
-  programming_languages: 'from-blue-500 via-blue-600 to-indigo-600',
+  music: 'from-purple-500 via-violet-600 to-fuchsia-600',
   countries: 'from-green-500 via-emerald-600 to-teal-600',
   animals: 'from-pink-500 via-rose-600 to-red-500',
   fruits: 'from-orange-500 via-amber-600 to-yellow-500',
-  books: 'from-purple-500 via-violet-600 to-fuchsia-600',
+  books: 'from-indigo-500 via-blue-600 to-cyan-600',
   movies: 'from-red-500 via-pink-600 to-rose-500',
   sports: 'from-yellow-500 via-orange-600 to-red-500',
   // Fallback for any new categories

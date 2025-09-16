@@ -24,7 +24,7 @@ export default function handler(req, res) {
       { name: 'movies', displayName: 'Cinema Buffs', description: 'Hollywood and beyond!' },
       { name: 'fruits', displayName: 'Fruit Basket', description: 'Name all the delicious fruits!' },
       { name: 'sports', displayName: 'Sports Stars', description: 'Athletes, teams, and games!' },
-      { name: 'programming_languages', displayName: 'Code Masters', description: 'Test your coding knowledge!' }
+      { name: 'music', displayName: 'Music Legends', description: 'Name your favorite artists and bands!' }
     ];
 
     res.status(200).json(categories);

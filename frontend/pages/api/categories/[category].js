@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     console.error(`Error loading category ${category}:`, error);
     
     // If the category is unknown, try to suggest available categories
-    const availableCategories = ['countries', 'animals', 'books', 'movies', 'fruits', 'sports', 'programming_languages'];
+    const availableCategories = ['countries', 'animals', 'books', 'movies', 'fruits', 'sports', 'music'];
     if (!availableCategories.includes(category.toLowerCase())) {
       return res.status(404).json({ 
         error: `Category '${category}' not supported`,
