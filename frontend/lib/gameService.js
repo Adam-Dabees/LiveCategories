@@ -1030,7 +1030,7 @@ class GameService {
 
   // Create a no contest when both players pass
   async createNoContest(lobbyId, secondPlayerId) {
-    console.log(`Creating no contest in lobby ${lobbyId}`);
+    console.log(`Creating no contest in lobby ${lobbyId} - redirecting to home`);
     
     if (db && this.useFirestore) {
       try {
@@ -1041,26 +1041,23 @@ class GameService {
           const lobbyData = lobbySnap.data();
           const gameState = lobbyData.gameState;
           
-          // Clear pass opportunity and create no contest
-          const updatedGameState = {
-            ...gameState,
-            passOpportunity: null,
-            noContest: {
-              bothPlayersPassed: true,
-              timestamp: Date.now(),
-              firstPlayer: gameState.passOpportunity?.firstPlayerPassed,
-              secondPlayer: secondPlayerId
-            },
-            phase: 'no_contest',
-            phaseEndsAt: Date.now() + (30 * 1000) // 30 seconds to choose
-          };
-          
+          // Mark lobby as completed without updating stats
           await updateDoc(lobbyRef, {
-            gameState: updatedGameState,
+            status: 'completed',
+            gameState: {
+              ...gameState,
+              phase: 'no_contest',
+              noContest: {
+                bothPlayersPassed: true,
+                timestamp: Date.now(),
+                firstPlayer: gameState.passOpportunity?.firstPlayerPassed,
+                secondPlayer: secondPlayerId
+              }
+            },
             lastActivity: Date.now()
           });
           
-          console.log('No contest created - both players passed');
+          console.log('No contest created - both players passed, no stats updated');
         }
       } catch (error) {
         console.error('Error creating no contest:', error);
@@ -1070,20 +1067,26 @@ class GameService {
       // Local storage fallback
       let lobby = localLobbies.get(lobbyId);
       if (lobby && lobby.gameState) {
-        lobby.gameState.passOpportunity = null;
+        lobby.status = 'completed';
+        lobby.gameState.phase = 'no_contest';
         lobby.gameState.noContest = {
           bothPlayersPassed: true,
           timestamp: Date.now(),
           firstPlayer: lobby.gameState.passOpportunity?.firstPlayerPassed,
           secondPlayer: secondPlayerId
         };
-        lobby.gameState.phase = 'no_contest';
-        lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
         lobby.lastActivity = Date.now();
         
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
       }
+    }
+    
+    // Automatically redirect to home page
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1000); // Small delay to show the no contest message
     }
   }
 

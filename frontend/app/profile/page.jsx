@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserStats, getUserRecentGames } from '../../lib/firestore';
+import { getUserStats } from '../../lib/firestore';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -55,7 +55,6 @@ const achievementDescriptions = {
 export default function ProfilePage() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
-  const [recentGames, setRecentGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,19 +73,6 @@ export default function ProfilePage() {
         setStats(statsResult.data);
       }
       
-      // Load recent games (with error handling to prevent interference)
-      try {
-        const gamesResult = await getUserRecentGames(user.id, 10);
-        if (gamesResult.success) {
-          setRecentGames(gamesResult.data);
-        } else {
-          console.warn('Failed to load recent games:', gamesResult.error);
-          setRecentGames([]); // Set empty array as fallback
-        }
-      } catch (gamesError) {
-        console.warn('Error loading recent games (non-critical):', gamesError);
-        setRecentGames([]); // Set empty array as fallback
-      }
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -231,33 +217,6 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Recent Games */}
-            {recentGames.length > 0 && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Games</h3>
-                <div className="space-y-3">
-                  {recentGames.slice(0, 5).map((game, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${game.won ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <div>
-                          <p className="font-medium text-gray-900 capitalize">{game.category}</p>
-                          <p className="text-sm text-gray-600">
-                            {new Date(game.timestamp?.seconds * 1000 || game.timestamp).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">{game.won ? '1 pt' : '0 pts'}</p>
-                        <p className={`text-sm font-medium ${game.won ? 'text-green-600' : 'text-red-600'}`}>
-                          {game.won ? 'Won' : 'Lost'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </motion.div>
 
           {/* Achievements Sidebar */}

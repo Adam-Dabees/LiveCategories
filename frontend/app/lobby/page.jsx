@@ -503,23 +503,6 @@ function LobbyPageContent() {
     }
   };
 
-  const handleNoContestChoice = async (choice) => {
-    try {
-      const currentLobbyCode = lobbyCode || code;
-      
-      if (choice === 'play') {
-        await gameService.startNoContestListing(currentLobbyCode, user.id);
-        addMessage('You chose to play! List 1 item to win');
-      } else {
-        // Handle not playing - redirect to home page
-        addMessage('You chose not to play. Returning to home page.');
-        router.push('/');
-      }
-    } catch (error) {
-      console.error('Error handling no contest choice:', error);
-      addMessage(`Failed to make choice: ${error.message}`);
-    }
-  };
 
   const handleSubmitItem = async () => {
     try {
@@ -892,7 +875,7 @@ function LobbyPageContent() {
             )}
 
 
-            {/* No Contest Phase */}
+            {/* No Contest Phase - Auto Redirect */}
             {lobbyData?.gameState?.phase === Phase.NO_CONTEST && (
               <motion.div
                 key="no-contest-phase"
@@ -900,9 +883,9 @@ function LobbyPageContent() {
                 animate={{ opacity: 1, y: 0 }}
                 className="relative overflow-hidden bg-gradient-to-br from-white to-purple-50 rounded-3xl p-8 shadow-2xl border-2 border-purple-200"
               >
-                <div className="relative z-10">
+                <div className="relative z-10 text-center">
                   <motion.div 
-                    className="text-center mb-8"
+                    className="mb-8"
                     animate={{ scale: [1, 1.02, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
@@ -910,29 +893,20 @@ function LobbyPageContent() {
                       🤝 No Contest
                     </h3>
                     <p className="text-gray-700 text-lg font-semibold">
-                      Both players passed! You can choose to play with 1 item or not play at all.
+                      Both players passed! No stats will be recorded.
+                    </p>
+                    <p className="text-gray-600 text-base mt-2">
+                      Redirecting to home page...
                     </p>
                   </motion.div>
                   
-                  <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleNoContestChoice('play')}
-                      className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
-                    >
-                      🎮 PLAY (List 1 Item)
-                    </motion.button>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleNoContestChoice('pass')}
-                      className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
-                    >
-                      🚪 DON'T PLAY
-                    </motion.button>
-                  </div>
+                  <motion.div
+                    className="w-16 h-16 mx-auto"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <div className="w-full h-full border-4 border-purple-300 border-t-purple-600 rounded-full"></div>
+                  </motion.div>
                 </div>
               </motion.div>
             )}
