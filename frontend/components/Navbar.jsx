@@ -28,11 +28,28 @@ export default function Navbar() {
   };
 
   const handleHomeClick = () => {
-    // Only show confirmation when leaving a lobby (not just any page)
+    // Always show confirmation when leaving a lobby
     if (window.location.pathname.startsWith('/lobby')) {
       setShowLeaveConfirm(true);
     } else {
       router.push('/');
+    }
+  };
+
+  const handleStatsClick = () => {
+    if (!user) {
+      const confirmed = window.confirm('You need to sign in to view your stats! Would you like to sign in now?');
+      if (confirmed) {
+        router.push('/login');
+      }
+      return;
+    }
+    
+    // Show confirmation when leaving a lobby for stats
+    if (window.location.pathname.startsWith('/lobby')) {
+      setShowLeaveConfirm(true);
+    } else {
+      router.push('/profile');
     }
   };
 
@@ -81,29 +98,41 @@ export default function Navbar() {
 
             {/* Desktop Menu */}
             <div className="hidden md:flex items-center space-x-4">
-              <button
-                onClick={() => setShowProfile(true)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
-              >
-                <User className="w-5 h-5" />
-                <span>{user?.displayName || user?.email?.split('@')[0]}</span>
-              </button>
-              
-              <button
-                onClick={() => router.push('/profile')}
-                className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
-              >
-                <BarChart3 className="w-5 h-5" />
-                <span>Stats</span>
-              </button>
-              
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 text-red-600 hover:text-red-700 transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </button>
+              {user ? (
+                <>
+                  <button
+                    onClick={() => setShowProfile(true)}
+                    className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span>{user?.displayName || user?.email?.split('@')[0]}</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleStatsClick}
+                    className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
+                  >
+                    <BarChart3 className="w-5 h-5" />
+                    <span>Stats</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 transition-colors"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span>Logout</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => router.push('/login')}
+                  className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  <User className="w-5 h-5" />
+                  <span>Login</span>
+                </button>
+              )}
             </div>
 
             {/* Mobile Menu Button */}
@@ -126,38 +155,53 @@ export default function Navbar() {
               className="md:hidden bg-white border-t border-gray-200"
             >
               <div className="px-4 py-2 space-y-2">
-                <button
-                  onClick={() => {
-                    setShowProfile(true);
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
-                >
-                  <User className="w-5 h-5" />
-                  <span>{user?.displayName || user?.email?.split('@')[0]}</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    router.push('/profile');
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Statistics</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center space-x-2 w-full text-left py-2 text-red-600 hover:text-red-700 transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>Logout</span>
-                </button>
+                {user ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowProfile(true);
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    >
+                      <User className="w-5 h-5" />
+                      <span>{user?.displayName || user?.email?.split('@')[0]}</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        handleStatsClick();
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    >
+                      <BarChart3 className="w-5 h-5" />
+                      <span>Statistics</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center space-x-2 w-full text-left py-2 text-red-600 hover:text-red-700 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span>Logout</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      router.push('/login');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center space-x-2 w-full text-left py-2 text-primary-600 hover:text-primary-700 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span>Login</span>
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -166,7 +210,7 @@ export default function Navbar() {
 
       {/* Profile Dropdown */}
       <AnimatePresence>
-        {showProfile && (
+        {showProfile && user && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

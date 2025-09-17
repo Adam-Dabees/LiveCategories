@@ -57,15 +57,9 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-      return;
-    }
-    
-    if (user) {
-      loadCategories();
-    }
-  }, [user, authLoading, router]);
+    // Always load categories, regardless of login status
+    loadCategories();
+  }, []);
 
   const loadCategories = async () => {
     try {
@@ -82,6 +76,15 @@ export default function HomePage() {
   };
 
   const handleCategorySelect = (category) => {
+    if (!user) {
+      // Show sign-in prompt for category selection
+      const confirmed = window.confirm('You need to sign in to play! Would you like to sign in now?');
+      if (confirmed) {
+        router.push('/login');
+      }
+      return;
+    }
+    
     setSelectedCategory(category);
     setShowLobbyOptions(true);
   };
@@ -118,6 +121,14 @@ export default function HomePage() {
   };
 
   const handleJoinRandom = async () => {
+    if (!user) {
+      const confirmed = window.confirm('You need to sign in to play! Would you like to sign in now?');
+      if (confirmed) {
+        router.push('/login');
+      }
+      return;
+    }
+    
     if (selectedCategory) {
       try {
         setLoading(true);
@@ -136,6 +147,14 @@ export default function HomePage() {
   };
 
   const handleJoinWithCode = async () => {
+    if (!user) {
+      const confirmed = window.confirm('You need to sign in to play! Would you like to sign in now?');
+      if (confirmed) {
+        router.push('/login');
+      }
+      return;
+    }
+    
     if (lobbyCode.trim()) {
       try {
         setLoading(true);

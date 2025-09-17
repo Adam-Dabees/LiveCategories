@@ -897,6 +897,257 @@ class GameService {
     }
   }
 
+  // Create a pass opportunity for the other player when no bids have been placed
+  async createPassOpportunity(lobbyId, playerId) {
+    console.log(`Creating pass opportunity for other player in lobby ${lobbyId}`);
+    
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (lobbySnap.exists()) {
+          const lobbyData = lobbySnap.data();
+          const gameState = lobbyData.gameState;
+          
+          if (gameState.phase !== 'bidding') {
+            throw new Error('Not in bidding phase');
+          }
+          
+          // Check if no bids were placed
+          if (gameState.highBidderId || gameState.currentBid > 0) {
+            throw new Error('Bids have already been placed');
+          }
+          
+          // Create pass opportunity state
+          const updatedGameState = {
+            ...gameState,
+            passOpportunity: {
+              firstPlayerPassed: playerId,
+              timestamp: Date.now(),
+              phaseEndsAt: Date.now() + (15 * 1000) // 15 seconds for other player to decide
+            }
+          };
+          
+          await updateDoc(lobbyRef, {
+            gameState: updatedGameState,
+            lastActivity: Date.now()
+          });
+          
+          console.log('Pass opportunity created for other player');
+        }
+      } catch (error) {
+        console.error('Error creating pass opportunity:', error);
+        throw error;
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby && lobby.gameState) {
+        if (lobby.gameState.phase !== 'bidding') {
+          throw new Error('Not in bidding phase');
+        }
+        
+        if (lobby.gameState.highBidderId || lobby.gameState.currentBid > 0) {
+          throw new Error('Bids have already been placed');
+        }
+        
+        lobby.gameState.passOpportunity = {
+          firstPlayerPassed: playerId,
+          timestamp: Date.now(),
+          phaseEndsAt: Date.now() + (15 * 1000)
+        };
+        lobby.lastActivity = Date.now();
+        
+        localLobbies.set(lobbyId, lobby);
+        this.triggerLocalListeners(lobbyId, lobby);
+      }
+    }
+  }
+
+  // Handle the other player's choice during pass opportunity
+  async handlePassOpportunityChoice(lobbyId, playerId, choice) {
+    console.log(`Player ${playerId} chose ${choice} during pass opportunity in lobby ${lobbyId}`);
+    
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (lobbySnap.exists()) {
+          const lobbyData = lobbySnap.data();
+          const gameState = lobbyData.gameState;
+          
+          if (!gameState.passOpportunity) {
+            throw new Error('No pass opportunity active');
+          }
+          
+          if (gameState.passOpportunity.firstPlayerPassed === playerId) {
+            throw new Error('Cannot respond to your own pass opportunity');
+          }
+          
+          if (choice === 'pass') {
+            // Both players passed - create no contest
+            await this.createNoContest(lobbyId, playerId);
+          } else if (choice === 'bid') {
+            // Player chose to bid - clear pass opportunity and continue bidding
+            const updatedGameState = {
+              ...gameState,
+              passOpportunity: null
+            };
+            
+            await updateDoc(lobbyRef, {
+              gameState: updatedGameState,
+              lastActivity: Date.now()
+            });
+            
+            console.log('Pass opportunity cleared, bidding continues');
+          }
+        }
+      } catch (error) {
+        console.error('Error handling pass opportunity choice:', error);
+        throw error;
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby && lobby.gameState && lobby.gameState.passOpportunity) {
+        if (lobby.gameState.passOpportunity.firstPlayerPassed === playerId) {
+          throw new Error('Cannot respond to your own pass opportunity');
+        }
+        
+        if (choice === 'pass') {
+          await this.createNoContest(lobbyId, playerId);
+        } else if (choice === 'bid') {
+          lobby.gameState.passOpportunity = null;
+          lobby.lastActivity = Date.now();
+          localLobbies.set(lobbyId, lobby);
+          this.triggerLocalListeners(lobbyId, lobby);
+        }
+      }
+    }
+  }
+
+  // Create a no contest when both players pass
+  async createNoContest(lobbyId, secondPlayerId) {
+    console.log(`Creating no contest in lobby ${lobbyId}`);
+    
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (lobbySnap.exists()) {
+          const lobbyData = lobbySnap.data();
+          const gameState = lobbyData.gameState;
+          
+          // Clear pass opportunity and create no contest
+          const updatedGameState = {
+            ...gameState,
+            passOpportunity: null,
+            noContest: {
+              bothPlayersPassed: true,
+              timestamp: Date.now(),
+              firstPlayer: gameState.passOpportunity?.firstPlayerPassed,
+              secondPlayer: secondPlayerId
+            },
+            phase: 'no_contest',
+            phaseEndsAt: Date.now() + (30 * 1000) // 30 seconds to choose
+          };
+          
+          await updateDoc(lobbyRef, {
+            gameState: updatedGameState,
+            lastActivity: Date.now()
+          });
+          
+          console.log('No contest created - both players passed');
+        }
+      } catch (error) {
+        console.error('Error creating no contest:', error);
+        throw error;
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby && lobby.gameState) {
+        lobby.gameState.passOpportunity = null;
+        lobby.gameState.noContest = {
+          bothPlayersPassed: true,
+          timestamp: Date.now(),
+          firstPlayer: lobby.gameState.passOpportunity?.firstPlayerPassed,
+          secondPlayer: secondPlayerId
+        };
+        lobby.gameState.phase = 'no_contest';
+        lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
+        lobby.lastActivity = Date.now();
+        
+        localLobbies.set(lobbyId, lobby);
+        this.triggerLocalListeners(lobbyId, lobby);
+      }
+    }
+  }
+
+  // Handle when a player chooses to list with 1 item during no contest
+  async startNoContestListing(lobbyId, playerId) {
+    console.log(`Player ${playerId} chose to list with 1 item in no contest lobby ${lobbyId}`);
+    
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (lobbySnap.exists()) {
+          const lobbyData = lobbySnap.data();
+          const gameState = lobbyData.gameState;
+          
+          if (gameState.phase !== 'no_contest') {
+            throw new Error('Not in no contest phase');
+          }
+          
+          // Transition to listing phase with 1 item target
+          const updatedGameState = {
+            ...gameState,
+            noContest: null,
+            phase: 'listing',
+            listerId: playerId,
+            highBidderId: playerId,
+            currentBid: 1,
+            targetCount: 1,
+            submittedItems: [],
+            phaseEndsAt: Date.now() + (30 * 1000) // 30 seconds for listing
+          };
+          
+          await updateDoc(lobbyRef, {
+            gameState: updatedGameState,
+            lastActivity: Date.now()
+          });
+          
+          console.log('No contest listing started with 1 item target');
+        }
+      } catch (error) {
+        console.error('Error starting no contest listing:', error);
+        throw error;
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby && lobby.gameState && lobby.gameState.phase === 'no_contest') {
+        lobby.gameState.noContest = null;
+        lobby.gameState.phase = 'listing';
+        lobby.gameState.listerId = playerId;
+        lobby.gameState.highBidderId = playerId;
+        lobby.gameState.currentBid = 1;
+        lobby.gameState.targetCount = 1;
+        lobby.gameState.submittedItems = [];
+        lobby.gameState.phaseEndsAt = Date.now() + (30 * 1000);
+        lobby.lastActivity = Date.now();
+        
+        localLobbies.set(lobbyId, lobby);
+        this.triggerLocalListeners(lobbyId, lobby);
+      }
+    }
+  }
+
   // Handle a player passing (or transition to listing phase if bidding ends)
   async transitionToListing(lobbyId) {
     console.log(`Transitioning lobby ${lobbyId} to listing phase`);

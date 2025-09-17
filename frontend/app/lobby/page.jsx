@@ -24,7 +24,8 @@ const Phase = {
   BIDDING: 'bidding',
   LISTING: 'listing',
   SUMMARY: 'summary',
-  ENDED: 'ended'
+  ENDED: 'ended',
+  NO_CONTEST: 'no_contest'
 };
 
 function LobbyPageContent() {
@@ -55,6 +56,35 @@ function LobbyPageContent() {
   const code = searchParams.get('code');
   const gameId = searchParams.get('gameId');
   const lobbyCode = searchParams.get('lobbyCode');
+
+  // Navigation protection - prevent leaving game accidentally
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (lobbyData?.gameState?.phase && lobbyData.gameState.phase !== 'lobby') {
+        e.preventDefault();
+        e.returnValue = 'Are you sure you want to leave the game? Your progress will be lost.';
+        return 'Are you sure you want to leave the game? Your progress will be lost.';
+      }
+    };
+
+    const handlePopState = (e) => {
+      if (lobbyData?.gameState?.phase && lobbyData.gameState.phase !== 'lobby') {
+        const confirmed = window.confirm('Are you sure you want to leave the game? Your progress will be lost.');
+        if (!confirmed) {
+          e.preventDefault();
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [lobbyData?.gameState?.phase]);
 
   useEffect(() => {
     if (!user) {
@@ -296,11 +326,23 @@ function LobbyPageContent() {
       });
       
       if (phase === 'bidding') {
-        // Always transition to listing phase when bidding time expires
-        // The transitionToListing method will handle setting a default bidder if no bids were placed
-        console.log('Bidding time expired, transitioning to listing phase');
-        addMessage('Bidding time expired, moving to listing phase');
-        await gameService.transitionToListing(currentLobbyCode);
+        // Check if there's a pass opportunity active
+        if (lobbyData?.gameState?.passOpportunity) {
+          console.log('Pass opportunity time expired, creating no contest');
+          addMessage('Pass opportunity expired, creating no contest');
+          await gameService.createNoContest(currentLobbyCode, user.id);
+        } else {
+          // Always transition to listing phase when bidding time expires
+          // The transitionToListing method will handle setting a default bidder if no bids were placed
+          console.log('Bidding time expired, transitioning to listing phase');
+          addMessage('Bidding time expired, moving to listing phase');
+          await gameService.transitionToListing(currentLobbyCode);
+        }
+      } else if (phase === 'no_contest') {
+        // No contest time expired - end game
+        console.log('No contest time expired, ending game');
+        addMessage('No contest time expired, ending game');
+        // You could add logic here to end the game or return to lobby
       } else if (phase === 'listing') {
         // Complete listing phase and calculate scores
         console.log('Completing listing phase');
@@ -423,19 +465,54 @@ function LobbyPageContent() {
     try {
       const currentLobbyCode = lobbyCode || code;
       
-      // If no bids were placed, place a minimum bid first
+      // If no bids were placed, create a pass opportunity for the other player
       if (!lobbyData?.gameState?.highBidderId || lobbyData?.gameState?.currentBid === 0) {
-        console.log('No bids placed, placing minimum bid of 1 before transition');
-        await gameService.placeBid(currentLobbyCode, user.id, 1);
-        // Small delay to let the bid register
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('No bids placed, creating pass opportunity for other player');
+        await gameService.createPassOpportunity(currentLobbyCode, user.id);
+        addMessage('You passed! Other player can now pass (no contest) or bid to continue');
+        return;
       }
       
+      // If there are bids, transition to listing phase normally
       await gameService.transitionToListing(currentLobbyCode);
       addMessage('Bidding ended, moving to listing phase');
     } catch (error) {
       console.error('Error ending bidding:', error);
       addMessage(`Failed to end bidding: ${error.message}`);
+    }
+  };
+
+  const handlePassOpportunityChoice = async (choice) => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      await gameService.handlePassOpportunityChoice(currentLobbyCode, user.id, choice);
+      
+      if (choice === 'pass') {
+        addMessage('You passed too! No contest - both players can choose to play or not');
+      } else {
+        addMessage('You chose to bid! Bidding continues...');
+      }
+    } catch (error) {
+      console.error('Error handling pass opportunity choice:', error);
+      addMessage(`Failed to make choice: ${error.message}`);
+    }
+  };
+
+  const handleNoContestChoice = async (choice) => {
+    try {
+      const currentLobbyCode = lobbyCode || code;
+      
+      if (choice === 'play') {
+        await gameService.startNoContestListing(currentLobbyCode, user.id);
+        addMessage('You chose to play! List 1 item to win');
+      } else {
+        // Handle not playing - could end game or return to lobby
+        addMessage('You chose not to play. Game ended.');
+        // You could add logic here to end the game or return to lobby
+      }
+    } catch (error) {
+      console.error('Error handling no contest choice:', error);
+      addMessage(`Failed to make choice: ${error.message}`);
     }
   };
 
@@ -741,15 +818,16 @@ function LobbyPageContent() {
                     </div>
                   </div>
                   
-                  {/* Bidding Controls */}
-                  <div className="space-y-6">
-                <div className="flex space-x-4">
+                  {/* Bidding Controls - Mobile Optimized */}
+                  <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                   <input
                     type="number"
                     value={bidInput}
                     onChange={(e) => setBidInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleBid()}
                         placeholder="Enter your bid"
-                        className="flex-1 text-2xl font-bold text-center py-4 px-6 border-2 border-yellow-300 rounded-2xl focus:ring-4 focus:ring-yellow-200 focus:border-yellow-500 transition-all duration-200"
+                        className="flex-1 text-lg sm:text-xl font-bold text-center py-3 sm:py-4 px-4 sm:px-6 border-2 border-yellow-300 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-yellow-200 focus:border-yellow-500 transition-all duration-200"
                     min={(lobbyData?.gameState?.currentBid || 0) + 1}
                   />
                       <motion.button
@@ -757,7 +835,7 @@ function LobbyPageContent() {
                         whileTap={{ scale: 0.95 }}
                     onClick={handleBid}
                         disabled={!bidInput || parseInt(bidInput) <= (lobbyData?.gameState?.currentBid || 0)}
-                        className="px-8 py-4 text-2xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         💰 BID
                       </motion.button>
@@ -768,7 +846,7 @@ function LobbyPageContent() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     onClick={handlePass}
-                        className="px-8 py-4 text-2xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
                       >
                         ✋ PASS
                       </motion.button>
@@ -808,6 +886,101 @@ function LobbyPageContent() {
               </motion.div>
             )}
 
+            {/* Pass Opportunity Phase */}
+            {lobbyData?.gameState?.phase === Phase.BIDDING && lobbyData?.gameState?.passOpportunity && (
+              <motion.div
+                key="pass-opportunity-phase"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden bg-gradient-to-br from-white to-blue-50 rounded-3xl p-8 shadow-2xl border-2 border-blue-200"
+              >
+                <div className="relative z-10">
+                  <motion.div 
+                    className="text-center mb-8"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <h3 className="text-3xl font-black text-gray-900 mb-3">
+                      🤔 Pass Opportunity
+                    </h3>
+                    <p className="text-gray-700 text-lg font-semibold">
+                      {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed === user.id 
+                        ? "You passed! Waiting for other player to decide..."
+                        : "Other player passed! What do you want to do?"
+                      }
+                    </p>
+                  </motion.div>
+                  
+                  {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed !== user.id && (
+                    <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handlePassOpportunityChoice('pass')}
+                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                      >
+                        ✋ PASS (No Contest)
+                      </motion.button>
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handlePassOpportunityChoice('bid')}
+                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                      >
+                        💰 BID (Continue)
+                      </motion.button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* No Contest Phase */}
+            {lobbyData?.gameState?.phase === Phase.NO_CONTEST && (
+              <motion.div
+                key="no-contest-phase"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden bg-gradient-to-br from-white to-purple-50 rounded-3xl p-8 shadow-2xl border-2 border-purple-200"
+              >
+                <div className="relative z-10">
+                  <motion.div 
+                    className="text-center mb-8"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <h3 className="text-3xl font-black text-gray-900 mb-3">
+                      🤝 No Contest
+                    </h3>
+                    <p className="text-gray-700 text-lg font-semibold">
+                      Both players passed! You can choose to play with 1 item or not play at all.
+                    </p>
+                  </motion.div>
+                  
+                  <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleNoContestChoice('play')}
+                      className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                    >
+                      🎮 PLAY (List 1 Item)
+                    </motion.button>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleNoContestChoice('pass')}
+                      className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                    >
+                      🚪 DON'T PLAY
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Listing Phase */}
             {lobbyData?.gameState?.phase === Phase.LISTING && (
               <motion.div
@@ -835,10 +1008,10 @@ function LobbyPageContent() {
                   
                   {lobbyData?.gameState?.listerId === user.id ? (
                     <div className="space-y-6">
-                      {/* Progress Bar with Animation */}
-                      <div className="bg-gray-200 rounded-full h-6 mb-6 shadow-inner">
+                      {/* Progress Bar with Animation - Mobile Optimized */}
+                      <div className="bg-gray-200 rounded-full h-3 sm:h-4 mb-4 shadow-inner">
                         <motion.div 
-                          className="bg-gradient-to-r from-green-500 to-blue-500 h-6 rounded-full shadow-lg"
+                          className="bg-gradient-to-r from-green-500 to-blue-500 h-3 sm:h-4 rounded-full shadow-lg"
                           style={{ 
                             width: `${Math.min(100, (((lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length) / (lobbyData?.gameState?.currentBid || 1)) * 100)}%` 
                           }}
@@ -853,32 +1026,32 @@ function LobbyPageContent() {
                         />
                       </div>
                       
-                      <div className="text-center mb-6">
+                      <div className="text-center mb-4">
                         <motion.div 
-                          className="text-4xl font-black text-primary-600 mb-2"
+                          className="text-2xl sm:text-3xl font-black text-primary-600 mb-1"
                           animate={{ scale: [1, 1.1, 1] }}
                           transition={{ duration: 0.5, repeat: Infinity }}
                         >
                           {(lobbyData?.gameState?.submittedItems || []).filter(item => item.isValid).length} / {lobbyData?.gameState?.currentBid || 1}
                         </motion.div>
-                        <div className="text-lg font-bold text-gray-600">Items submitted</div>
+                        <div className="text-sm sm:text-base font-bold text-gray-600">Items submitted</div>
                       </div>
 
-                    <div className="flex space-x-4">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                       <input
                         type="text"
                         value={itemInput}
                         onChange={(e) => setItemInput(e.target.value)}
                           placeholder="Enter item name..."
-                          className="flex-1 text-xl font-bold text-center py-4 px-6 border-2 border-green-300 rounded-2xl focus:ring-4 focus:ring-green-200 focus:border-green-500 transition-all duration-200"
-                        onKeyPress={(e) => e.key === 'Enter' && handleSubmitItem()}
+                          className="flex-1 text-base sm:text-lg font-bold text-center py-3 sm:py-4 px-4 sm:px-6 border-2 border-green-300 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-green-200 focus:border-green-500 transition-all duration-200"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSubmitItem()}
                       />
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                         onClick={handleSubmitItem}
                         disabled={!itemInput.trim()}
-                          className="px-8 py-4 text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                           + SUBMIT
                         </motion.button>

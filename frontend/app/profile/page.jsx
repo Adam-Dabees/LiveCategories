@@ -132,7 +132,7 @@ export default function ProfilePage() {
           className="text-center mb-12"
         >
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome back, {user?.displayName || user?.email}!
+            Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'Player'}!
           </h1>
           <p className="text-xl text-gray-600">Your gaming journey and achievements</p>
         </motion.div>
@@ -183,17 +183,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Score</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.totalScore || 0}</p>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-full">
-                    <BarChart3 className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Streaks */}
@@ -259,8 +248,10 @@ export default function ProfilePage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-gray-900">{game.score} pts</p>
-                        <p className="text-sm text-gray-600">{game.won ? 'Won' : 'Lost'}</p>
+                        <p className="font-bold text-gray-900">{game.won ? '1 pt' : '0 pts'}</p>
+                        <p className={`text-sm font-medium ${game.won ? 'text-green-600' : 'text-red-600'}`}>
+                          {game.won ? 'Won' : 'Lost'}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -324,11 +315,31 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-purple-100">Average Score</span>
-                  <span className="font-bold">{stats.averageScore || 0}</span>
+                  <span className="font-bold">
+                    {stats.totalGames > 0 ? (stats.totalScore / stats.totalGames).toFixed(1) : '0.0'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-purple-100">Favorite Category</span>
-                  <span className="font-bold capitalize">{stats.favoriteCategory || 'None'}</span>
+                  <span className="font-bold capitalize">
+                    {(() => {
+                      if (!stats.categoriesPlayed || stats.categoriesPlayed.length === 0) return 'None';
+                      
+                      // Find category with highest win percentage
+                      let favorite = stats.categoriesPlayed[0];
+                      let bestWinRate = favorite.games > 0 ? (favorite.wins / favorite.games) : 0;
+                      
+                      for (const category of stats.categoriesPlayed) {
+                        const winRate = category.games > 0 ? (category.wins / category.games) : 0;
+                        if (winRate > bestWinRate || (winRate === bestWinRate && category.games > favorite.games)) {
+                          favorite = category;
+                          bestWinRate = winRate;
+                        }
+                      }
+                      
+                      return favorite.name;
+                    })()}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-purple-100">Total Categories</span>
