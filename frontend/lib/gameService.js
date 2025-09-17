@@ -1256,8 +1256,8 @@ class GameService {
           
           let updatedGameState;
           if (isGameComplete) {
-            // Game is complete - each player will save their own stats
-            console.log('🎮 Game completed - each player will save their own stats');
+            // Game is complete - mark as ended
+            await this.markGameAsEnded(lobbyId);
             
             updatedGameState = {
               ...gameState,
@@ -1639,9 +1639,9 @@ class GameService {
     }
   }
 
-  // End the game and update user statistics
-  async endGame(lobbyId) {
-    console.log(`🎮 Ending game for lobby ${lobbyId}`);
+  // Mark game as ended (no stats saving - each player saves their own stats)
+  async markGameAsEnded(lobbyId) {
+    console.log(`🎮 Marking game as ended for lobby ${lobbyId}`);
     
     if (db && this.useFirestore) {
       try {
@@ -1651,18 +1651,9 @@ class GameService {
         if (lobbySnap.exists()) {
           const lobbyData = lobbySnap.data();
           const gameState = lobbyData.gameState;
-          const players = lobbyData.players;
-          
-          // Check if game was already processed for a player leaving
-          if (gameState.processedForLeave) {
-            console.log('⚠️ Game already processed for player leave, skipping endGame');
-            return gameState;
-          }
-          
-          console.log('📊 Game data:', { gameState, players });
+          const scores = gameState.scores || {};
           
           // Determine winner
-          const scores = gameState.scores || {};
           const winnerId = Object.keys(scores).reduce((a, b) => 
             (scores[a] || 0) > (scores[b] || 0) ? a : b
           );
@@ -1677,18 +1668,19 @@ class GameService {
             lastActivity: Date.now()
           });
           
-          console.log('✅ Game ended - each player will save their own stats');
-          return gameState;
+          console.log('✅ Game marked as ended - each player will save their own stats');
+          return { success: true, winnerId };
         } else {
           console.error('❌ Lobby not found:', lobbyId);
+          return { success: false, error: 'Lobby not found' };
         }
       } catch (error) {
-        console.error('❌ Error ending game:', error);
-        throw error;
+        console.error('❌ Error marking game as ended:', error);
+        return { success: false, error: error.message };
       }
     } else {
-      // Local storage doesn't persist user stats
-      console.log('⚠️ Game ended (local storage mode - no stats saved)');
+      console.log('⚠️ Game marked as ended (local storage mode)');
+      return { success: true };
     }
   }
 
