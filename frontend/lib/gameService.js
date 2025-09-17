@@ -1256,8 +1256,8 @@ class GameService {
           
           let updatedGameState;
           if (isGameComplete) {
-            // Game is complete - update user statistics
-            await this.endGame(lobbyId);
+            // Game is complete - each player will save their own stats
+            console.log('🎮 Game completed - each player will save their own stats');
             
             updatedGameState = {
               ...gameState,
