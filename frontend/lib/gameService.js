@@ -1669,67 +1669,15 @@ class GameService {
           
           console.log('🏆 Winner determined:', { scores, winnerId });
           
-          // Import stats functions
-          const { updateUserStats, saveGameResult, checkAchievements } = await import('./firestore');
+          // Update game state with winner info
+          await updateDoc(lobbyRef, {
+            'gameState.phase': 'ended',
+            'gameState.endedAt': Date.now(),
+            'gameState.winnerId': winnerId,
+            lastActivity: Date.now()
+          });
           
-          // Update each player's statistics using the comprehensive stats system
-          for (const [playerId, player] of Object.entries(players)) {
-            if (playerId && player) {
-              try {
-                const isWin = playerId === winnerId;
-                const playerScore = scores[playerId] || 0;
-                const category = gameState.category || 'unknown';
-                
-                console.log(`👤 Processing stats for player ${playerId}:`, { isWin, playerScore, category });
-                
-                // Prepare game data for stats update
-                const gameData = {
-                  won: isWin,
-                  score: playerScore,
-                  category: category,
-                  duration: Date.now() - (lobbyData.createdAt || Date.now()),
-                  lobbyCode: lobbyId,
-                  opponentId: Object.keys(players).find(id => id !== playerId),
-                  itemsSubmitted: (gameState.submittedItems || []).filter(item => item.playerId === playerId).length,
-                  validItems: (gameState.submittedItems || []).filter(item => item.playerId === playerId && item.isValid).length
-                };
-                
-                console.log(`💾 Game data for ${playerId}:`, gameData);
-                
-                // Save game result
-                const gameResult = await saveGameResult({
-                  userId: playerId,
-                  ...gameData,
-                  timestamp: Date.now()
-                });
-                
-                console.log(`💾 Game result saved for ${playerId}:`, gameResult);
-                
-                // Update user statistics
-                const statsResult = await updateUserStats(playerId, gameData);
-                
-                console.log(`📈 Stats update result for ${playerId}:`, statsResult);
-                
-                if (statsResult.success) {
-                  // Check for new achievements
-                  const newAchievements = await checkAchievements(playerId, statsResult.data);
-                  
-                  // Log new achievements
-                  if (newAchievements.length > 0) {
-                    console.log(`🎉 New achievements for ${player.name}:`, newAchievements);
-                  }
-                } else {
-                  console.error(`❌ Failed to update stats for ${playerId}:`, statsResult.error);
-                }
-                
-                console.log(`✅ Updated comprehensive stats for player ${playerId}`);
-              } catch (error) {
-                console.error(`❌ Error updating stats for player ${playerId}:`, error);
-              }
-            }
-          }
-          
-          console.log('🎉 Game ended and comprehensive player statistics updated');
+          console.log('✅ Game ended - each player will save their own stats');
           return gameState;
         } else {
           console.error('❌ Lobby not found:', lobbyId);
