@@ -92,11 +92,16 @@ function LobbyPageContent() {
       // Mark player as disconnected when leaving
       const currentLobbyCode = lobbyCode || code;
       if (currentLobbyCode && user) {
-        // Only call leaveLobby - it will handle both stats saving and disconnection
-        gameService.leaveLobby(currentLobbyCode, user.id).catch(console.error);
+        // Only call leaveLobby if game hasn't ended yet (to avoid duplicate stats saving)
+        if (lobbyData?.gameState?.phase !== 'ended') {
+          console.log('🚪 Game not ended, calling leaveLobby for disconnection');
+          gameService.leaveLobby(currentLobbyCode, user.id).catch(console.error);
+        } else {
+          console.log('🎮 Game already ended, skipping leaveLobby to avoid duplicate stats');
+        }
       }
     };
-  }, [user, lobbyCode, code]); // Dependencies for lobby initialization
+  }, [user, lobbyCode, code, lobbyData?.gameState?.phase]); // Dependencies for lobby initialization
 
   const startTimer = () => {
     if (timerRef.current) {

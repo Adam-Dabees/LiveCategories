@@ -451,6 +451,12 @@ class GameService {
         return;
       }
       
+      // Check if stats have already been saved for this player to prevent duplicates
+      if (gameState[`statsSavedFor_${playerId}`]) {
+        console.log(`⚠️ Stats already saved for player ${playerId}, skipping duplicate`);
+        return;
+      }
+      
       // Determine winner based on scores
       let winnerId = null;
       let highestScore = -1;
@@ -499,6 +505,12 @@ class GameService {
       console.log(`📈 Stats updated for player ${playerId}`);
       
       console.log(`✅ Successfully saved stats for player ${playerId}`);
+      
+      // Mark that stats have been saved for this player to prevent duplicates
+      await updateDoc(lobbyRef, {
+        [`gameState.statsSavedFor_${playerId}`]: true,
+        lastActivity: Date.now()
+      });
       
     } catch (error) {
       console.error('Error saving player stats:', error);
