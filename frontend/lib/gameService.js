@@ -228,20 +228,12 @@ class GameService {
       console.log(`🎮 Game state:`, gameState);
       console.log(`👥 Players:`, lobbyData.players);
       
-      try {
-        await this.handlePlayerLeaveGame(lobbyId, playerId, lobbyData);
-        console.log(`✅ Successfully processed stats for both players`);
-      } catch (error) {
-        console.error(`❌ Error processing stats when player left:`, error);
-        
-        // Fallback: try to save stats directly
-        console.log(`🔄 Attempting fallback stats saving...`);
-        try {
-          await this.saveStatsDirectly(lobbyId, playerId, lobbyData);
-        } catch (fallbackError) {
-          console.error(`❌ Fallback stats saving also failed:`, fallbackError);
-        }
-      }
+          try {
+            await this.handlePlayerLeaveGame(lobbyId, playerId, lobbyData);
+            console.log(`✅ Successfully processed stats for leaving player`);
+          } catch (error) {
+            console.error(`❌ Error processing stats when player left:`, error);
+          }
       
       const updatedPlayers = { ...lobbyData.players };
       delete updatedPlayers[playerId];
@@ -256,7 +248,7 @@ class GameService {
   }
 
   // Handle when a player leaves during an active game
-  // NOTE: This function only saves stats for the LEAVING player due to Firestore security rules
+  // This function ONLY saves stats for the LEAVING player (due to Firestore security rules)
   // The remaining player will save their own stats when they detect the game ended
   async handlePlayerLeaveGame(lobbyId, leavingPlayerId, lobbyData) {
     try {
@@ -269,42 +261,25 @@ class GameService {
       console.log(`🎮 Game state phase: ${gameState.phase}`);
       console.log(`👥 Players in lobby:`, Object.keys(players));
       
-      // Always process stats when someone leaves, even if game is ended
-      // This ensures we don't miss any stats updates
-      console.log(`📊 Processing stats for player leave, regardless of game state`);
-      
       // Check if we've already processed this game to avoid duplicates
       if (gameState.processedForLeave) {
         console.log(`⚠️ Game already processed for leave, skipping duplicate processing`);
         return;
       }
       
-      // Mark as being processed immediately to prevent race conditions
-      const lobbyRef = doc(db, 'lobbies', lobbyId);
-      await updateDoc(lobbyRef, {
-        'gameState.processingLeave': true,
-        lastActivity: Date.now()
-      });
-      
-      // Determine winner based on scores, not just who left
-      // If there are scores, use them to determine the actual winner
+      // Determine winner based on scores
       let winnerId = null;
       let loserId = leavingPlayerId;
       
       console.log(`🔍 DEBUG: Determining winner/loser for leaving player ${leavingPlayerId}`);
       console.log(`🔍 DEBUG: Available scores:`, scores);
-      console.log(`🔍 DEBUG: Available players:`, Object.keys(players));
       
       if (scores && Object.keys(scores).length > 0) {
-        // Use actual scores to determine winner - be very explicit about the logic
-        const scoreEntries = Object.entries(scores);
-        console.log(`🔍 DEBUG: Score entries:`, scoreEntries);
-        
         // Find the player with the highest score
         let highestScore = -1;
         let highestScorePlayer = null;
         
-        for (const [playerId, score] of scoreEntries) {
+        for (const [playerId, score] of Object.entries(scores)) {
           const playerScore = score || 0;
           console.log(`🔍 DEBUG: Player ${playerId} has score ${playerScore}`);
           if (playerScore > highestScore) {
@@ -314,38 +289,30 @@ class GameService {
         }
         
         winnerId = highestScorePlayer;
-        
-        // The loser is whoever is not the winner
-        loserId = scoreEntries.find(([id, score]) => id !== winnerId)?.[0] || leavingPlayerId;
+        loserId = Object.keys(scores).find(id => id !== winnerId) || leavingPlayerId;
         
         console.log(`🏆 Winner determined by scores: ${winnerId} (score: ${scores[winnerId]})`);
         console.log(`❌ Loser determined by scores: ${loserId} (score: ${scores[loserId]})`);
-        console.log(`🔍 DEBUG: Leaving player ${leavingPlayerId} is ${winnerId === leavingPlayerId ? 'WINNER' : 'LOSER'}`);
       } else {
         // Fallback: remaining player wins if no scores
         const remainingPlayers = Object.keys(players).filter(id => id !== leavingPlayerId);
         winnerId = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
         console.log(`🏆 No scores available, remaining player wins: ${winnerId}`);
-        console.log(`🔍 DEBUG: Leaving player ${leavingPlayerId} is LOSER (no scores)`);
       }
       
-      console.log(`👥 All players:`, Object.keys(players));
-      console.log(`📊 Current scores:`, scores);
-      
       // Import stats functions
-      const { updateUserStats, saveGameResult, checkAchievements } = await import('./firestore');
+      const { updateUserStats, saveGameResult } = await import('./firestore');
       
       // ONLY save stats for the leaving player (due to Firestore security rules)
-      // The remaining player will save their own stats when they detect the game ended
       const leavingPlayer = players[leavingPlayerId];
       if (leavingPlayer) {
         console.log(`👤 Processing leaving player ${leavingPlayerId}:`, leavingPlayer);
         
-        // Determine if the leaving player won or lost based on scores
+        // Determine if the leaving player won or lost
         const isLeavingPlayerWinner = winnerId === leavingPlayerId;
         
         const gameData = {
-          won: isLeavingPlayerWinner, // True if leaving player won, false if they lost
+          won: isLeavingPlayerWinner,
           score: scores[leavingPlayerId] || 0,
           category: gameState.category || 'unknown',
           duration: Date.now() - (lobbyData.createdAt || Date.now()),
@@ -353,41 +320,41 @@ class GameService {
           opponentId: isLeavingPlayerWinner ? loserId : winnerId,
           itemsSubmitted: (gameState.submittedItems || []).filter(item => item.playerId === leavingPlayerId).length,
           validItems: (gameState.submittedItems || []).filter(item => item.playerId === leavingPlayerId && item.isValid).length,
-          leftGame: true // Mark that they left the game
+          leftGame: true
         };
         
         console.log(`💾 Saving stats for LEAVING player ${leavingPlayerId} (won: ${isLeavingPlayerWinner}):`, gameData);
         
         try {
-          const gameResult = await saveGameResult({
+          // Save game result
+          await saveGameResult({
             userId: leavingPlayerId,
             ...gameData,
             timestamp: Date.now()
           });
-          console.log(`💾 Game result saved for LEAVING player ${leavingPlayerId}:`, gameResult);
+          console.log(`💾 Game result saved for LEAVING player ${leavingPlayerId}`);
           
-          const statsResult = await updateUserStats(leavingPlayerId, gameData);
-          console.log(`📈 Stats update result for LEAVING player ${leavingPlayerId}:`, statsResult);
+          // Update user statistics
+          await updateUserStats(leavingPlayerId, gameData);
+          console.log(`📈 Stats updated for LEAVING player ${leavingPlayerId}`);
         } catch (error) {
           console.error(`❌ Error saving stats for LEAVING player ${leavingPlayerId}:`, error);
         }
-      } else {
-        console.error(`❌ Leaving player ${leavingPlayerId} not found in players:`, players);
       }
       
-      // Mark the game as ended since someone left and mark as processed
+      // Mark the game as ended and store winner/loser info for remaining player
+      const lobbyRef = doc(db, 'lobbies', lobbyId);
       await updateDoc(lobbyRef, {
         'gameState.phase': 'ended',
         'gameState.endedAt': Date.now(),
         'gameState.processedForLeave': true,
-        'gameState.processingLeave': false, // Clear processing flag
-        'gameState.winnerId': winnerId, // Store winner ID for remaining player
-        'gameState.loserId': loserId,   // Store loser ID for remaining player
+        'gameState.winnerId': winnerId,
+        'gameState.loserId': loserId,
         lastActivity: Date.now()
       });
       
-      console.log('🎮 Game marked as ended and processed due to player leaving');
-      console.log(`📝 Winner ID stored for remaining player: ${winnerId}`);
+      console.log('🎮 Game marked as ended due to player leaving');
+      console.log(`📝 Winner: ${winnerId}, Loser: ${loserId}`);
       
     } catch (error) {
       console.error('Error handling player leave during game:', error);
@@ -400,14 +367,7 @@ class GameService {
       console.log(`🎮 Saving stats for remaining player ${remainingPlayerId} in lobby ${lobbyId}`);
       
       const gameState = lobbyData.gameState;
-      const players = lobbyData.players;
       const scores = gameState.scores || {};
-      
-      // Check if stats have already been saved for this player
-      if (gameState[`statsSavedFor_${remainingPlayerId}`]) {
-        console.log(`⚠️ Stats already saved for remaining player ${remainingPlayerId}, skipping duplicate`);
-        return;
-      }
       
       // Get winner/loser info that was stored when the other player left
       const winnerId = gameState.winnerId;
@@ -424,13 +384,12 @@ class GameService {
       const isRemainingPlayerWinner = winnerId === remainingPlayerId;
       
       console.log(`🔍 DEBUG: Remaining player ${remainingPlayerId} is ${isRemainingPlayerWinner ? 'WINNER' : 'LOSER'}`);
-      console.log(`🔍 DEBUG: Winner ID: ${winnerId}, Remaining player ID: ${remainingPlayerId}, Match: ${winnerId === remainingPlayerId}`);
       
       // Import stats functions
       const { updateUserStats, saveGameResult } = await import('./firestore');
       
       const gameData = {
-        won: isRemainingPlayerWinner, // True if remaining player won, false if they lost
+        won: isRemainingPlayerWinner,
         score: scores[remainingPlayerId] || 0,
         category: gameState.category || 'unknown',
         duration: Date.now() - (lobbyData.createdAt || Date.now()),
@@ -438,31 +397,24 @@ class GameService {
         opponentId: isRemainingPlayerWinner ? loserId : winnerId,
         itemsSubmitted: (gameState.submittedItems || []).filter(item => item.playerId === remainingPlayerId).length,
         validItems: (gameState.submittedItems || []).filter(item => item.playerId === remainingPlayerId && item.isValid).length,
-        opponentLeft: true // Mark that opponent left the game
+        opponentLeft: true
       };
       
       console.log(`💾 Saving stats for REMAINING player ${remainingPlayerId} (won: ${isRemainingPlayerWinner}):`, gameData);
       
       // Save game result
-      const gameResult = await saveGameResult({
+      await saveGameResult({
         userId: remainingPlayerId,
         ...gameData,
         timestamp: Date.now()
       });
-      console.log(`💾 Game result saved for REMAINING player ${remainingPlayerId}:`, gameResult);
+      console.log(`💾 Game result saved for REMAINING player ${remainingPlayerId}`);
       
       // Update user statistics
-      const statsResult = await updateUserStats(remainingPlayerId, gameData);
-      console.log(`📈 Stats update result for REMAINING player ${remainingPlayerId}:`, statsResult);
+      await updateUserStats(remainingPlayerId, gameData);
+      console.log(`📈 Stats updated for REMAINING player ${remainingPlayerId}`);
       
       console.log(`✅ Successfully saved stats for remaining player ${remainingPlayerId}`);
-      
-      // Mark that stats have been saved for this player to prevent duplicates
-      const lobbyRef = doc(db, 'lobbies', lobbyId);
-      await updateDoc(lobbyRef, {
-        [`gameState.statsSavedFor_${remainingPlayerId}`]: true,
-        lastActivity: Date.now()
-      });
       
     } catch (error) {
       console.error('Error saving stats for remaining player:', error);
@@ -470,60 +422,86 @@ class GameService {
   }
 
   // Fallback method to save stats directly
-  async saveStatsDirectly(lobbyId, leavingPlayerId, lobbyData) {
+  // Save stats for the current player when game ends normally
+  // This function is called by each player to save their own stats
+  async savePlayerStats(lobbyId, playerId) {
     try {
-      console.log(`🔄 Fallback: Saving stats directly for lobby ${lobbyId}`);
+      console.log(`🎮 Saving stats for player ${playerId} in lobby ${lobbyId}`);
       
+      if (!db) {
+        throw new Error('Firebase Firestore not available');
+      }
+      
+      const lobbyRef = doc(db, 'lobbies', lobbyId);
+      const lobbySnap = await getDoc(lobbyRef);
+      
+      if (!lobbySnap.exists()) {
+        console.error('Lobby not found:', lobbyId);
+        return;
+      }
+      
+      const lobbyData = lobbySnap.data();
       const gameState = lobbyData.gameState;
       const players = lobbyData.players;
       const scores = gameState.scores || {};
       
-      // Determine winner
-      const remainingPlayers = Object.keys(players).filter(id => id !== leavingPlayerId);
-      const winnerId = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
+      // Check if this player exists in the game
+      if (!players[playerId]) {
+        console.error(`Player ${playerId} not found in lobby ${lobbyId}`);
+        return;
+      }
       
-      console.log(`🔄 Fallback: Winner determined as ${winnerId}`);
+      // Determine winner based on scores
+      let winnerId = null;
+      let highestScore = -1;
+      
+      for (const [pid, score] of Object.entries(scores)) {
+        if (score > highestScore) {
+          highestScore = score;
+          winnerId = pid;
+        }
+      }
+      
+      console.log(`🏆 Winner: ${winnerId}, Current player: ${playerId}`);
+      
+      // Determine if this player won or lost
+      const isWinner = playerId === winnerId;
+      const playerScore = scores[playerId] || 0;
+      
+      console.log(`🔍 DEBUG: Player ${playerId} is ${isWinner ? 'WINNER' : 'LOSER'}`);
       
       // Import stats functions
       const { updateUserStats, saveGameResult } = await import('./firestore');
       
-      // Save stats for leaving player (loses)
-      if (players[leavingPlayerId]) {
-        const gameData = {
-          won: false,
-          score: scores[leavingPlayerId] || 0,
-          category: gameState.category || 'unknown',
-          duration: Date.now() - (lobbyData.createdAt || Date.now()),
-          lobbyCode: lobbyId,
-          opponentId: winnerId,
-          leftGame: true
-        };
-        
-        console.log(`🔄 Fallback: Saving stats for leaving player ${leavingPlayerId}`);
-        await saveGameResult({ userId: leavingPlayerId, ...gameData, timestamp: Date.now() });
-        await updateUserStats(leavingPlayerId, gameData);
-      }
+      const gameData = {
+        won: isWinner,
+        score: playerScore,
+        category: gameState.category || 'unknown',
+        duration: Date.now() - (lobbyData.createdAt || Date.now()),
+        lobbyCode: lobbyId,
+        opponentId: Object.keys(players).find(id => id !== playerId),
+        itemsSubmitted: (gameState.submittedItems || []).filter(item => item.playerId === playerId).length,
+        validItems: (gameState.submittedItems || []).filter(item => item.playerId === playerId && item.isValid).length
+      };
       
-      // Save stats for remaining player (wins)
-      if (winnerId && players[winnerId]) {
-        const gameData = {
-          won: true,
-          score: scores[winnerId] || 0,
-          category: gameState.category || 'unknown',
-          duration: Date.now() - (lobbyData.createdAt || Date.now()),
-          lobbyCode: lobbyId,
-          opponentId: leavingPlayerId,
-          opponentLeft: true
-        };
-        
-        console.log(`🔄 Fallback: Saving stats for winning player ${winnerId}`);
-        await saveGameResult({ userId: winnerId, ...gameData, timestamp: Date.now() });
-        await updateUserStats(winnerId, gameData);
-      }
+      console.log(`💾 Saving stats for player ${playerId} (won: ${isWinner}):`, gameData);
       
-      console.log(`✅ Fallback stats saving completed`);
+      // Save game result
+      await saveGameResult({
+        userId: playerId,
+        ...gameData,
+        timestamp: Date.now()
+      });
+      console.log(`💾 Game result saved for player ${playerId}`);
+      
+      // Update user statistics
+      await updateUserStats(playerId, gameData);
+      console.log(`📈 Stats updated for player ${playerId}`);
+      
+      console.log(`✅ Successfully saved stats for player ${playerId}`);
+      
     } catch (error) {
-      console.error('Error in fallback stats saving:', error);
+      console.error('Error saving player stats:', error);
     }
   }
 

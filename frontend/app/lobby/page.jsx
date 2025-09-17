@@ -307,8 +307,8 @@ function LobbyPageContent() {
         await gameService.completeListingPhase(currentLobbyCode);
         addMessage('Listing time expired, calculating scores...');
         } else if (phase === 'ended') {
-          // Game ended - save stats for remaining player if needed
-          console.log('Game ended - checking if stats need to be saved');
+          // Game ended - save stats for current player
+          console.log('Game ended - saving stats for current player');
           
           // Check if this game was ended due to player leaving
           if (lobbyData?.gameState?.processedForLeave && lobbyData?.gameState?.winnerId) {
@@ -325,7 +325,13 @@ function LobbyPageContent() {
               console.error('❌ Error saving stats for remaining player:', error);
             }
           } else {
-            console.log('ℹ️ Game ended normally (not due to player leaving)');
+            console.log('ℹ️ Game ended normally - saving stats for current player');
+            try {
+              await gameService.savePlayerStats(currentLobbyCode, user.id);
+              console.log('✅ Stats saved for current player');
+            } catch (error) {
+              console.error('❌ Error saving stats for current player:', error);
+            }
           }
           
           // Redirect to categories page
