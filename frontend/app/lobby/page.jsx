@@ -92,16 +92,11 @@ function LobbyPageContent() {
       // Mark player as disconnected when leaving
       const currentLobbyCode = lobbyCode || code;
       if (currentLobbyCode && user) {
-        // Only call leaveLobby if game hasn't ended yet (to avoid duplicate stats saving)
-        if (lobbyData?.gameState?.phase !== 'ended') {
-          console.log('🚪 Game not ended, calling leaveLobby for disconnection');
-          gameService.leaveLobby(currentLobbyCode, user.id).catch(console.error);
-        } else {
-          console.log('🎮 Game already ended, skipping leaveLobby to avoid duplicate stats');
-        }
+        // Only call leaveLobby - it will handle both stats saving and disconnection
+        gameService.leaveLobby(currentLobbyCode, user.id).catch(console.error);
       }
     };
-  }, [user, lobbyCode, code, lobbyData?.gameState?.phase]); // Dependencies for lobby initialization
+  }, [user, lobbyCode, code]); // Dependencies for lobby initialization
 
   const startTimer = () => {
     if (timerRef.current) {
@@ -356,12 +351,8 @@ function LobbyPageContent() {
           }
         }
         
-        // Redirect to categories page after a short delay
-        setTimeout(() => {
-          console.log('Game ended - redirecting to categories page');
-          addMessage('Game complete! Redirecting to categories page...');
-          router.push('/');
-        }, 2000);
+        // Don't redirect immediately - let the 60-second timer handle it
+        console.log('Game ended - stats saved, waiting for 60-second timer to redirect');
       }
     };
 
