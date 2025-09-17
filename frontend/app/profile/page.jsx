@@ -314,12 +314,6 @@ export default function ProfilePage() {
               <h3 className="text-xl font-bold mb-4">Quick Stats</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-purple-100">Average Score</span>
-                  <span className="font-bold">
-                    {stats.totalGames > 0 ? (stats.totalScore / stats.totalGames).toFixed(1) : '0.0'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-purple-100">Favorite Category</span>
                   <span className="font-bold capitalize">
                     {(() => {

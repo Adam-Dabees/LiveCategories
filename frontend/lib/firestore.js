@@ -222,7 +222,7 @@ export const saveGameResult = async (gameData) => {
     const gamesRef = collection(db, 'games');
     const gameDoc = await addDoc(gamesRef, {
       ...gameData,
-      timestamp: serverTimestamp()
+      timestamp: gameData.timestamp || Date.now() // Use the timestamp from gameData or current time
     });
     
     return { success: true, gameId: gameDoc.id };
@@ -255,7 +255,11 @@ export const getUserRecentGames = async (userId, limitCount = 10) => {
     });
     
     // Sort by timestamp in JavaScript since we can't use orderBy in the query
-    games.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    games.sort((a, b) => {
+      const aTime = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : (a.timestamp || 0);
+      const bTime = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : (b.timestamp || 0);
+      return bTime - aTime;
+    });
     
     return { success: true, data: games };
   } catch (error) {

@@ -511,9 +511,9 @@ function LobbyPageContent() {
         await gameService.startNoContestListing(currentLobbyCode, user.id);
         addMessage('You chose to play! List 1 item to win');
       } else {
-        // Handle not playing - could end game or return to lobby
-        addMessage('You chose not to play. Game ended.');
-        // You could add logic here to end the game or return to lobby
+        // Handle not playing - redirect to home page
+        addMessage('You chose not to play. Returning to home page.');
+        router.push('/');
       }
     } catch (error) {
       console.error('Error handling no contest choice:', error);
@@ -891,55 +891,6 @@ function LobbyPageContent() {
               </motion.div>
             )}
 
-            {/* Pass Opportunity Phase */}
-            {lobbyData?.gameState?.phase === Phase.BIDDING && lobbyData?.gameState?.passOpportunity && (
-              <motion.div
-                key="pass-opportunity-phase"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden bg-gradient-to-br from-white to-blue-50 rounded-3xl p-8 shadow-2xl border-2 border-blue-200"
-              >
-                <div className="relative z-10">
-                  <motion.div 
-                    className="text-center mb-8"
-                    animate={{ scale: [1, 1.02, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <h3 className="text-3xl font-black text-gray-900 mb-3">
-                      🤔 Pass Opportunity
-                    </h3>
-                    <p className="text-gray-700 text-lg font-semibold">
-                      {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed === user.id 
-                        ? "You passed! Waiting for other player to decide..."
-                        : "Other player passed! What do you want to do?"
-                      }
-                    </p>
-                  </motion.div>
-                  
-                  {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed !== user.id && (
-                    <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePassOpportunityChoice('pass')}
-                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
-                      >
-                        ✋ PASS (No Contest)
-                      </motion.button>
-                      
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePassOpportunityChoice('bid')}
-                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
-                      >
-                        💰 BID (Continue)
-                      </motion.button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
 
             {/* No Contest Phase */}
             {lobbyData?.gameState?.phase === Phase.NO_CONTEST && (
@@ -1546,6 +1497,56 @@ function LobbyPageContent() {
                 </div>
               )}
             </div>
+
+            {/* Pass Opportunity Phase - Below Timer */}
+            {lobbyData?.gameState?.phase === Phase.BIDDING && lobbyData?.gameState?.passOpportunity && (
+              <motion.div
+                key="pass-opportunity-phase"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden bg-gradient-to-br from-white to-blue-50 rounded-3xl p-8 shadow-2xl border-2 border-blue-200 mt-6"
+              >
+                <div className="relative z-10">
+                  <motion.div 
+                    className="text-center mb-8"
+                    animate={{ scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <h3 className="text-3xl font-black text-gray-900 mb-3">
+                      🤔 Pass Opportunity
+                    </h3>
+                    <p className="text-gray-700 text-lg font-semibold">
+                      {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed === user.id 
+                        ? "You passed! Waiting for other player to decide..."
+                        : "Other player passed! What do you want to do?"
+                      }
+                    </p>
+                  </motion.div>
+                  
+                  {lobbyData?.gameState?.passOpportunity?.firstPlayerPassed !== user.id && (
+                    <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handlePassOpportunityChoice('pass')}
+                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                      >
+                        ✋ PASS (No Contest)
+                      </motion.button>
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handlePassOpportunityChoice('bid')}
+                        className="px-6 sm:px-8 py-3 sm:py-4 text-lg sm:text-xl font-black bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl sm:rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-200"
+                      >
+                        💰 BID (Continue)
+                      </motion.button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
             
             {/* Dart Board Animation - Below Timer */}
             {submissionAnimation && (
