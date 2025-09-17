@@ -18,6 +18,7 @@ export default function Navbar() {
   const [showProfile, setShowProfile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -47,6 +48,7 @@ export default function Navbar() {
     
     // Show confirmation when leaving a lobby for stats
     if (window.location.pathname.startsWith('/lobby')) {
+      setPendingAction('stats');
       setShowLeaveConfirm(true);
     } else {
       router.push('/profile');
@@ -73,7 +75,14 @@ export default function Navbar() {
       }
     }
     
-    router.push('/');
+    // Navigate based on pending action
+    if (pendingAction === 'stats') {
+      router.push('/profile');
+    } else {
+      router.push('/');
+    }
+    
+    setPendingAction(null);
   };
 
   const cancelLeave = () => {

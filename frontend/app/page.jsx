@@ -200,9 +200,7 @@ export default function HomePage() {
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  // Remove this check - allow access without login
 
   return (
     <div className="min-h-screen bg-gray-50">

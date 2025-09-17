@@ -330,7 +330,12 @@ function LobbyPageContent() {
         if (lobbyData?.gameState?.passOpportunity) {
           console.log('Pass opportunity time expired, creating no contest');
           addMessage('Pass opportunity expired, creating no contest');
-          await gameService.createNoContest(currentLobbyCode, user.id);
+          // Use the second player (not the one who passed first)
+          const players = Object.keys(lobbyData?.players || {});
+          const secondPlayer = players.find(id => id !== lobbyData.gameState.passOpportunity.firstPlayerPassed);
+          if (secondPlayer) {
+            await gameService.createNoContest(currentLobbyCode, secondPlayer);
+          }
         } else {
           // Always transition to listing phase when bidding time expires
           // The transitionToListing method will handle setting a default bidder if no bids were placed
