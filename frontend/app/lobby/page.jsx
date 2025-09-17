@@ -307,43 +307,61 @@ function LobbyPageContent() {
         await gameService.completeListingPhase(currentLobbyCode);
         addMessage('Listing time expired, calculating scores...');
         } else if (phase === 'ended') {
-          // Game ended - save stats for current player
-          console.log('Game ended - saving stats for current player');
-          
-          // Check if this game was ended due to player leaving
-          if (lobbyData?.gameState?.processedForLeave && lobbyData?.gameState?.winnerId) {
-            console.log('🎮 Game ended due to player leaving, saving stats for remaining player');
-            console.log('🔍 DEBUG: Winner ID from game state:', lobbyData.gameState.winnerId);
-            console.log('🔍 DEBUG: Loser ID from game state:', lobbyData.gameState.loserId);
-            console.log('🔍 DEBUG: Current user ID:', user.id);
-            console.log('🔍 DEBUG: Remaining player should be:', lobbyData.gameState.winnerId === user.id ? 'WINNER' : 'LOSER');
-            
-            try {
-              await gameService.saveRemainingPlayerStats(currentLobbyCode, user.id, lobbyData);
-              console.log('✅ Stats saved for remaining player');
-            } catch (error) {
-              console.error('❌ Error saving stats for remaining player:', error);
-            }
-          } else {
-            console.log('ℹ️ Game ended normally - saving stats for current player');
-            try {
-              await gameService.savePlayerStats(currentLobbyCode, user.id);
-              console.log('✅ Stats saved for current player');
-            } catch (error) {
-              console.error('❌ Error saving stats for current player:', error);
-            }
-          }
-          
-          // Redirect to categories page
-          console.log('Game ended - redirecting to categories page');
-          addMessage('Game complete! Redirecting to categories page...');
-          router.push('/');
+          // Game ended - stats saving is handled by separate useEffect
+          console.log('Game ended - stats saving handled by dedicated useEffect');
         }
     } catch (error) {
       console.error('Error handling phase timeout:', error);
       addMessage(`Phase transition error: ${error.message}`);
     }
   }, [lobbyCode, code, lobbyData?.gameState?.phase, lobbyData?.gameState?.highBidderId]);
+
+  // Separate useEffect to handle game ending and stats saving
+  useEffect(() => {
+    const handleGameEnd = async () => {
+      if (!user || !lobbyData?.gameState) return;
+      
+      const phase = lobbyData.gameState.phase;
+      const currentLobbyCode = lobbyCode || code;
+      
+      if (phase === 'ended') {
+        console.log('🎮 Game ended detected - saving stats for current player');
+        
+        // Check if this game was ended due to player leaving
+        if (lobbyData?.gameState?.processedForLeave && lobbyData?.gameState?.winnerId) {
+          console.log('🎮 Game ended due to player leaving, saving stats for remaining player');
+          console.log('🔍 DEBUG: Winner ID from game state:', lobbyData.gameState.winnerId);
+          console.log('🔍 DEBUG: Loser ID from game state:', lobbyData.gameState.loserId);
+          console.log('🔍 DEBUG: Current user ID:', user.id);
+          console.log('🔍 DEBUG: Remaining player should be:', lobbyData.gameState.winnerId === user.id ? 'WINNER' : 'LOSER');
+          
+          try {
+            await gameService.saveRemainingPlayerStats(currentLobbyCode, user.id, lobbyData);
+            console.log('✅ Stats saved for remaining player');
+          } catch (error) {
+            console.error('❌ Error saving stats for remaining player:', error);
+          }
+        } else {
+          console.log('ℹ️ Game ended normally - saving stats for current player');
+          try {
+            await gameService.savePlayerStats(currentLobbyCode, user.id);
+            console.log('✅ Stats saved for current player');
+          } catch (error) {
+            console.error('❌ Error saving stats for current player:', error);
+          }
+        }
+        
+        // Redirect to categories page after a short delay
+        setTimeout(() => {
+          console.log('Game ended - redirecting to categories page');
+          addMessage('Game complete! Redirecting to categories page...');
+          router.push('/');
+        }, 2000);
+      }
+    };
+
+    handleGameEnd();
+  }, [lobbyData?.gameState?.phase, user, lobbyCode, code, lobbyData?.gameState?.processedForLeave, lobbyData?.gameState?.winnerId, router]);
 
   const sendMessage = async (type, data = {}) => {
     try {
