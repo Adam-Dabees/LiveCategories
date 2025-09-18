@@ -450,7 +450,7 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
           onClick={() => setShowLobbyOptions(false)}
         >
           <motion.div
