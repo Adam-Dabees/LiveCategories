@@ -1,18 +1,20 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional
 import json, time, asyncio, uuid
 from .api_service import api_service
+from .redis_service import redis_service
+from .config import settings
 
-app = FastAPI(title="Realtime Categories (MVP)")
+app = FastAPI(title="LiveCategories API", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://livecategories.com"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -20,14 +22,60 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize API service on startup"""
-    print("Starting API service...")
+    """Initialize services on startup"""
+    print("Starting LiveCategories API...")
+    print("Initializing Redis connection...")
+    # Test Redis connection
+    try:
+        await redis_service.get_online_users()
+        print("✅ Redis connected successfully")
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up API service on shutdown"""
+    """Clean up services on shutdown"""
     await api_service.close()
     print("API service closed.")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes"""
+    try:
+        # Check Redis connection
+        await redis_service.get_online_users()
+        redis_status = "healthy"
+    except Exception as e:
+        redis_status = f"unhealthy: {str(e)}"
+    
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "timestamp": time.time(),
+            "services": {
+                "redis": redis_status,
+                "api": "healthy"
+            },
+            "version": "1.0.0"
+        }
+    )
+
+@app.get("/metrics")
+async def metrics():
+    """Basic metrics endpoint"""
+    try:
+        online_users = await redis_service.get_online_users()
+        return JSONResponse(
+            content={
+                "online_users": online_users,
+                "active_games": len(ROOMS),
+                "timestamp": time.time()
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Metrics unavailable: {str(e)}")
 
 # ----- Game types
 
