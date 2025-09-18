@@ -1264,13 +1264,18 @@ class GameService {
           
         case 'fruits':
         case 'fruit':
-          const { validateFood: validateFruit } = await import('../lib/categoryFetchers');
+          const { validateFruit } = await import('../lib/categoryFetchers');
           return await validateFruit(item);
           
         case 'animals':
         case 'animal':
           const { validateAnimal } = await import('../lib/categoryFetchers');
           return await validateAnimal(item);
+          
+        case 'vehicles':
+        case 'vehicle':
+          const { validateVehicle } = await import('../lib/categoryFetchers');
+          return await validateVehicle(item);
           
         case 'books':
         case 'book':

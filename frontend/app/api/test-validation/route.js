@@ -4,10 +4,12 @@ import {
   validateCountry, 
   validatePokemon, 
   validateFood, 
+  validateFruit,
   validateAnimal, 
   validateBook, 
   validateMusic,
-  validateSports
+  validateSports,
+  validateVehicle
 } from '../../../lib/categoryFetchers.js';
 
 export async function POST(request) {
@@ -43,6 +45,13 @@ export async function POST(request) {
         method = 'API Search';
         source = 'TheMealDB API';
         break;
+        
+      case 'fruits':
+        result = await validateFruit(item);
+        method = 'API Search';
+        source = 'Fruityvice API';
+        break;
+        
       case 'animals':
         result = await validateAnimal(item);
         method = 'API Search';
@@ -66,6 +75,13 @@ export async function POST(request) {
         method = 'API Search';
         source = 'TheSportsDB API';
         break;
+        
+      case 'vehicles':
+        result = await validateVehicle(item);
+        method = 'API Search';
+        source = 'NHTSA VPIC API';
+        break;
+        
       default:
         return NextResponse.json({ error: 'Unknown category' }, { status: 400 });
     }

@@ -24,7 +24,8 @@ export default function handler(req, res) {
       { name: 'movies', displayName: 'Cinema Buffs', description: 'Hollywood and beyond!' },
       { name: 'fruits', displayName: 'Fruit Basket', description: 'Name all the delicious fruits!' },
       { name: 'sports', displayName: 'Sports Stars', description: 'Athletes, teams, and games!' },
-      { name: 'music', displayName: 'Music Legends', description: 'Name your favorite artists and bands!' }
+      { name: 'music', displayName: 'Music Legends', description: 'Name your favorite artists and bands!' },
+      { name: 'vehicles', displayName: 'Auto Zone', description: 'Cars, trucks, and everything on wheels!' }
     ];
 
     res.status(200).json(categories);

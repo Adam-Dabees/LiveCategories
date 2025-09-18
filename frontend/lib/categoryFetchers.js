@@ -208,6 +208,40 @@ export async function validateFood(foodName) {
 }
 
 /**
+ * Validate fruit using Fruityvice API (direct search)
+ * Minimum 3 characters required to prevent single letter matches
+ */
+export async function validateFruit(fruitName) {
+  try {
+    // Require minimum 3 characters to prevent single letter matches
+    if (!fruitName || fruitName.trim().length < 3) {
+      console.log(`❌ Fruit name "${fruitName}" must be at least 3 characters long`);
+      return false;
+    }
+
+    console.log(`🔍 Searching for fruit "${fruitName}" using Fruityvice API`);
+    
+    // Fruityvice API - search by fruit name
+    const response = await fetch(`https://fruityvice.com/api/fruit/${encodeURIComponent(fruitName.trim())}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.name) {
+        console.log(`✅ Fruit "${fruitName}" found in Fruityvice database - awarding point`);
+        return true;
+      }
+    }
+    
+    console.log(`❌ Fruit "${fruitName}" not found in Fruityvice database`);
+    return false;
+    
+  } catch (error) {
+    console.error('Error validating fruit with API:', error);
+    return false;
+  }
+}
+
+/**
  * Validate animal using API Ninjas Animals API (direct search)
  */
 export async function validateAnimal(animalName) {
@@ -490,6 +524,78 @@ function fallbackSportsValidation(sportName) {
 }
 
 /**
+ * Validate vehicle using NHTSA VPIC Vehicle API (direct search)
+ */
+export async function validateVehicle(vehicleName) {
+  try {
+    console.log(`🔍 Searching for vehicle "${vehicleName}" using NHTSA VPIC API`);
+    
+    // Clean the vehicle name for better search results
+    const cleanVehicleName = vehicleName.trim();
+    
+    // NHTSA VPIC API - search for vehicle makes
+    const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/getallmakes?format=json`);
+    
+    if (!response.ok) {
+      console.warn(`NHTSA VPIC API request failed with status ${response.status}, using fallback validation`);
+      return fallbackVehicleValidation(vehicleName);
+    }
+    
+    const data = await response.json();
+    
+    if (data.Results && data.Results.length > 0) {
+      // Check if any of the returned makes match closely
+      const normalizedInput = cleanVehicleName.toLowerCase();
+      const foundMatch = data.Results.some(result => {
+        const makeName = result.Make_Name ? result.Make_Name.toLowerCase() : '';
+        return makeName === normalizedInput || 
+               makeName.includes(normalizedInput) || 
+               normalizedInput.includes(makeName);
+      });
+      
+      if (foundMatch) {
+        console.log(`✅ Vehicle "${vehicleName}" found in NHTSA VPIC database - awarding point`);
+        return true;
+      }
+    }
+    
+    console.log(`❌ Vehicle "${vehicleName}" not found in NHTSA VPIC database`);
+    return false;
+    
+  } catch (error) {
+    console.error('Error validating vehicle with API:', error);
+    return fallbackVehicleValidation(vehicleName);
+  }
+}
+
+// Fallback validation for vehicles when API fails
+function fallbackVehicleValidation(vehicleName) {
+  console.log(`⚠️ Using fallback validation for vehicle "${vehicleName}"`);
+  
+  const vehicleMakes = [
+    'toyota', 'honda', 'ford', 'chevrolet', 'nissan', 'bmw', 'mercedes', 'audi',
+    'volkswagen', 'hyundai', 'kia', 'mazda', 'subaru', 'lexus', 'acura', 'infiniti',
+    'cadillac', 'lincoln', 'buick', 'gmc', 'ram', 'jeep', 'dodge', 'chrysler',
+    'ferrari', 'lamborghini', 'porsche', 'maserati', 'bentley', 'rolls royce',
+    'jaguar', 'land rover', 'volvo', 'saab', 'peugeot', 'citroen', 'renault',
+    'fiat', 'alfa romeo', 'mini', 'smart', 'tesla', 'rivian', 'lucid'
+  ];
+  
+  const normalizedInput = vehicleName.toLowerCase().trim();
+  const isValid = vehicleMakes.some(make => 
+    make.includes(normalizedInput) || normalizedInput.includes(make)
+  );
+  
+  if (isValid) {
+    console.log(`✅ Vehicle "${vehicleName}" found in fallback list - awarding point`);
+  } else {
+    console.log(`❌ Vehicle "${vehicleName}" not found in fallback list`);
+  }
+  
+  return isValid;
+}
+
+/**
  * Fetch animals from Zoo Animal API
  */
 export async function fetchAnimals() {
@@ -647,6 +753,27 @@ export async function fetchPokemon() {
 }
 
 /**
+ * Fetch vehicles - Return popular vehicle makes for display
+ */
+export async function fetchVehicles() {
+  try {
+    // Return a basic list of popular vehicle makes for display purposes
+    // Real validation happens when user submits answers using NHTSA VPIC API
+    return [
+      'Toyota', 'Honda', 'Ford', 'Chevrolet', 'Nissan', 'BMW', 'Mercedes-Benz', 'Audi',
+      'Volkswagen', 'Hyundai', 'Kia', 'Mazda', 'Subaru', 'Lexus', 'Acura', 'Infiniti',
+      'Cadillac', 'Lincoln', 'Buick', 'GMC', 'Ram', 'Jeep', 'Dodge', 'Chrysler',
+      'Ferrari', 'Lamborghini', 'Porsche', 'Maserati', 'Bentley', 'Rolls-Royce',
+      'Jaguar', 'Land Rover', 'Volvo', 'Saab', 'Peugeot', 'Citroën', 'Renault',
+      'Fiat', 'Alfa Romeo', 'Mini', 'Smart', 'Tesla', 'Rivian', 'Lucid'
+    ].sort();
+  } catch (error) {
+    console.error('Error fetching vehicles:', error);
+    return [];
+  }
+}
+
+/**
  * Master function to fetch data for any category
  */
 export async function fetchCategoryData(category) {
@@ -668,6 +795,8 @@ export async function fetchCategoryData(category) {
       return await fetchMusic();
     case 'pokemon':
       return await fetchPokemon();
+    case 'vehicles':
+      return await fetchVehicles();
     default:
       throw new Error(`Unknown category: ${category}`);
   }

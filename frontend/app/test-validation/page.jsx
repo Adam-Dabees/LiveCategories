@@ -38,10 +38,12 @@ export default function TestValidation() {
           <option value="countries">Countries</option>
           <option value="pokemon">Pokemon</option>
           <option value="food">Food</option>
+          <option value="fruits">Fruits</option>
           <option value="animals">Animals</option>
           <option value="books">Books</option>
           <option value="music">Music</option>
           <option value="sports">Sports</option>
+          <option value="vehicles">Vehicles</option>
         </select>
       </div>
 
