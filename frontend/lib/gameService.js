@@ -21,6 +21,73 @@ class GameService {
   constructor() {
     this.listeners = new Map();
     this.useFirestore = true; // Will be set to false if Firestore fails
+    this.phaseTimers = new Map(); // Track active phase timers
+  }
+
+  // Timer management methods
+  startPhaseTimer(lobbyId, duration, onTimeout) {
+    console.log(`Starting phase timer for lobby ${lobbyId}, duration: ${duration}ms`);
+    
+    // Clear existing timer if any
+    this.clearPhaseTimer(lobbyId);
+    
+    // Set new timer
+    const timeoutId = setTimeout(async () => {
+      console.log(`Phase timer expired for lobby ${lobbyId}`);
+      try {
+        await onTimeout();
+      } catch (error) {
+        console.error('Error handling phase timeout:', error);
+      }
+    }, duration);
+    
+    this.phaseTimers.set(lobbyId, timeoutId);
+  }
+
+  clearPhaseTimer(lobbyId) {
+    const existingTimer = this.phaseTimers.get(lobbyId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.phaseTimers.delete(lobbyId);
+      console.log(`Cleared phase timer for lobby ${lobbyId}`);
+    }
+  }
+
+  // Auto-transition when phase timer expires
+  async handlePhaseTimeout(lobbyId, currentPhase) {
+    console.log(`Handling phase timeout for lobby ${lobbyId}, phase: ${currentPhase}`);
+    
+    try {
+      // Add a small delay to prevent conflicts with ongoing submissions
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      switch (currentPhase) {
+        case 'bidding':
+          // Transition to listing phase with current highest bidder
+          await this.transitionToListing(lobbyId);
+          break;
+        case 'listing':
+          // Complete listing phase and go to summary
+          console.log(`Timer expired for listing phase in lobby ${lobbyId} - AUTO TRANSITION DISABLED FOR DEBUGGING`);
+          // await this.completeListingPhase(lobbyId);
+          break;
+        case 'summary':
+          // Start next round or end game
+          const lobby = await this.getLobby(lobbyId);
+          if (lobby?.gameState) {
+            if (lobby.gameState.currentRound >= lobby.settings.bestOf) {
+              await this.endGame(lobbyId);
+            } else {
+              await this.transitionFromSummary(lobbyId);
+            }
+          }
+          break;
+        default:
+          console.log(`No auto-transition defined for phase: ${currentPhase}`);
+      }
+    } catch (error) {
+      console.error(`Error handling phase timeout for ${currentPhase}:`, error);
+    }
   }
 
   // Create a new lobby
@@ -70,10 +137,15 @@ class GameService {
   // Join an existing lobby
   async joinLobby(lobbyId, player) {
     console.log('Joining lobby:', lobbyId, 'as player:', player);
+    console.log('Player type:', typeof player);
+    console.log('Player keys:', player ? Object.keys(player) : 'null');
+    console.log('Player ID:', player?.id);
     
     // Validate player data
     if (!player || !player.id) {
-      console.error('Invalid player data:', player);
+      console.error('❌ Invalid player data:', player);
+      console.error('Player is null/undefined:', !player);
+      console.error('Player.id is missing:', !player?.id);
       throw new Error('Invalid player data');
     }
     
@@ -85,6 +157,8 @@ class GameService {
         
         if (lobbySnap.exists()) {
           const lobbyData = lobbySnap.data();
+          const isFirstPlayer = Object.keys(lobbyData.players || {}).length === 0;
+          
           const updatedPlayers = {
             ...lobbyData.players,
             [player.id]: {
@@ -97,10 +171,17 @@ class GameService {
             }
           };
           
-          await updateDoc(lobbyRef, {
+          const updateData = {
             players: updatedPlayers,
             lastActivity: Date.now()
-          });
+          };
+          
+          // Set host if no host is set and this is the first player
+          if (!lobbyData.host && isFirstPlayer) {
+            updateData.host = player.id;
+          }
+          
+          await updateDoc(lobbyRef, updateData);
           
           console.log('Successfully joined existing lobby via Firestore');
           return;
@@ -126,16 +207,24 @@ class GameService {
             category: category,
             bestOf: 5,
             status: 'waiting_for_players',
+            host: player.id, // Set the first player as host
             players: {
               [player.id]: sanitizedPlayer
             },
             createdAt: Date.now(),
             lastActivity: Date.now(),
-            phase: 'lobby',
-            scores: {},
-            round: 1,
-            highBid: 0,
-            listCount: 0
+            gameState: {
+              phase: 'lobby',
+              round: 1,
+              scores: {},
+              bids: {},
+              submissions: {},
+              currentBid: 0,
+              highBid: 0,
+              listCount: 0,
+              timerEnd: null,
+              results: {}
+            }
           };
           
           await setDoc(lobbyRef, newLobby);
@@ -172,14 +261,22 @@ class GameService {
         category: category,
         bestOf: 5,
         status: 'waiting_for_players',
+        host: player.id, // Set the first player as host
         players: {},
         createdAt: Date.now(),
         lastActivity: Date.now(),
-        phase: 'lobby',
-        scores: {},
-        round: 1,
-        highBid: 0,
-        listCount: 0
+        gameState: {
+          phase: 'lobby',
+          round: 1,
+          scores: {},
+          bids: {},
+          submissions: {},
+          currentBid: 0,
+          highBid: 0,
+          listCount: 0,
+          timerEnd: null,
+          results: {}
+        }
       };
     }
     
@@ -192,6 +289,8 @@ class GameService {
       joinedAt: Date.now()
     };
     
+    const isFirstPlayer = Object.keys(lobby.players || {}).length === 0;
+    
     const updatedPlayers = {
       ...lobby.players,
       [player.id]: sanitizedPlayer
@@ -202,6 +301,11 @@ class GameService {
       players: updatedPlayers,
       lastActivity: Date.now()
     };
+    
+    // Set host if no host is set and this is the first player
+    if (!lobby.host && isFirstPlayer) {
+      updatedLobby.host = player.id;
+    }
     
     localLobbies.set(lobbyId, updatedLobby);
     this.triggerLocalListeners(lobbyId, updatedLobby);
@@ -637,11 +741,18 @@ class GameService {
         players: {},
         createdAt: Date.now(),
         lastActivity: Date.now(),
-        phase: 'lobby',
-        scores: {},
-        round: 1,
-        highBid: 0,
-        listCount: 0
+        gameState: {
+          phase: 'lobby',
+          round: 1,
+          scores: {},
+          bids: {},
+          submissions: {},
+          currentBid: 0,
+          highBid: 0,
+          listCount: 0,
+          timerEnd: null,
+          results: {}
+        }
       };
       
       localLobbies.set(lobbyId, emptyLobby);
@@ -772,6 +883,7 @@ class GameService {
             round: 1,
             currentBid: 0,
             highBidderId: null,
+            bids: {}, // Initialize empty bids object
             scores: {},
             phaseEndsAt: Date.now() + (30 * 1000), // 30 seconds for bidding
             category: lobbyData.category
@@ -787,6 +899,9 @@ class GameService {
             gameState: gameState,
             lastActivity: Date.now()
           });
+          
+          // Start phase timer for bidding
+          this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'bidding'));
           
           console.log('Game started successfully');
           return gameState;
@@ -811,6 +926,7 @@ class GameService {
           round: 1,
           currentBid: 0,
           highBidderId: null,
+          bids: {}, // Initialize empty bids object
           scores: {},
           phaseEndsAt: Date.now() + (30 * 1000),
           category: lobby.category
@@ -826,6 +942,9 @@ class GameService {
         
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
+        
+        // Start phase timer for bidding
+        this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'bidding'));
         
         return gameState;
       } else {
@@ -851,13 +970,18 @@ class GameService {
             throw new Error('Not in bidding phase');
           }
           
-          if (bidAmount <= gameState.currentBid) {
+          // Allow first bid to be any value, otherwise must be higher than current bid
+          if (gameState.currentBid > 0 && bidAmount <= gameState.currentBid) {
             throw new Error('Bid must be higher than current bid');
           }
           
-          // Update game state - don't reset timer, just update bid
+          // Update game state - store individual bid and update current high bid
           const updatedGameState = {
             ...gameState,
+            bids: {
+              ...gameState.bids,
+              [playerId]: bidAmount
+            },
             currentBid: bidAmount,
             highBidderId: playerId
             // Keep existing phaseEndsAt - don't reset timer
@@ -867,6 +991,18 @@ class GameService {
             gameState: updatedGameState,
             lastActivity: Date.now()
           });
+          
+          // Check if all players have made their bid/pass decision
+          const playerIds = Object.keys(lobbyData.players);
+          const allPlayersDecided = playerIds.every(pid => 
+            updatedGameState.bids.hasOwnProperty(pid)
+          );
+          
+          if (allPlayersDecided) {
+            // Clear timer and transition to listing
+            this.clearPhaseTimer(lobbyId);
+            setTimeout(() => this.transitionToListing(lobbyId), 1000); // Small delay for UI
+          }
           
           console.log('Bid placed successfully');
         }
@@ -882,10 +1018,15 @@ class GameService {
           throw new Error('Not in bidding phase');
         }
         
-        if (bidAmount <= lobby.gameState.currentBid) {
+        // Allow first bid to be any value, otherwise must be higher than current bid
+        if (lobby.gameState.currentBid > 0 && bidAmount <= lobby.gameState.currentBid) {
           throw new Error('Bid must be higher than current bid');
         }
         
+        if (!lobby.gameState.bids) {
+          lobby.gameState.bids = {};
+        }
+        lobby.gameState.bids[playerId] = bidAmount;
         lobby.gameState.currentBid = bidAmount;
         lobby.gameState.highBidderId = playerId;
         // Keep existing phaseEndsAt - don't reset timer
@@ -893,6 +1034,115 @@ class GameService {
         
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
+        
+        // Check if all players have made their bid/pass decision
+        const playerIds = Object.keys(lobby.players);
+        const allPlayersDecided = playerIds.every(pid => 
+          lobby.gameState.bids.hasOwnProperty(pid)
+        );
+        
+        if (allPlayersDecided) {
+          // Clear timer and transition to listing
+          this.clearPhaseTimer(lobbyId);
+          setTimeout(() => this.transitionToListing(lobbyId), 1000); // Small delay for UI
+        }
+      }
+    }
+  }
+
+  // Pass a bid (set bid to 0)
+  async passBid(lobbyId, playerId) {
+    console.log(`Player ${playerId} passing bid in lobby ${lobbyId}`);
+    
+    if (db && this.useFirestore) {
+      try {
+        const lobbyRef = doc(db, 'lobbies', lobbyId);
+        const lobbySnap = await getDoc(lobbyRef);
+        
+        if (lobbySnap.exists()) {
+          const lobbyData = lobbySnap.data();
+          const gameState = lobbyData.gameState;
+          
+          if (gameState.phase !== 'bidding') {
+            throw new Error('Not in bidding phase');
+          }
+          
+          // Update game state with pass
+          const updatedGameState = {
+            ...gameState,
+            bids: {
+              ...gameState.bids,
+              [playerId]: 0  // 0 represents a pass
+            }
+          };
+          
+          await updateDoc(lobbyRef, {
+            gameState: updatedGameState,
+            lastActivity: Date.now()
+          });
+          
+          // Check if all players have made their bid/pass decision
+          const playerIds = Object.keys(lobbyData.players);
+          const allPlayersDecided = playerIds.every(pid => 
+            updatedGameState.bids.hasOwnProperty(pid)
+          );
+          
+          if (allPlayersDecided) {
+            // Check if anyone has a bid > 0 (not passed)
+            const hasValidBid = Object.values(updatedGameState.bids).some(bid => bid > 0);
+            if (hasValidBid) {
+              // Clear timer and transition to listing
+              this.clearPhaseTimer(lobbyId);
+              setTimeout(() => this.transitionToListing(lobbyId), 1000); // Small delay for UI
+            } else {
+              // Everyone passed - start no contest listing
+              this.clearPhaseTimer(lobbyId);
+              setTimeout(() => this.startNoContestListing(lobbyId, playerId), 1000);
+            }
+          }
+          
+          console.log('Bid passed successfully');
+        }
+      } catch (error) {
+        console.error('Error passing bid:', error);
+        throw error;
+      }
+    } else {
+      // Local storage fallback
+      let lobby = localLobbies.get(lobbyId);
+      if (lobby && lobby.gameState) {
+        if (lobby.gameState.phase !== 'bidding') {
+          throw new Error('Not in bidding phase');
+        }
+        
+        if (!lobby.gameState.bids) {
+          lobby.gameState.bids = {};
+        }
+        lobby.gameState.bids[playerId] = 0; // 0 represents a pass
+        lobby.lastActivity = Date.now();
+        
+        localLobbies.set(lobbyId, lobby);
+        this.triggerLocalListeners(lobbyId, lobby);
+        
+        // Check if all players have made their bid/pass decision
+        const playerIds = Object.keys(lobby.players);
+        const allPlayersDecided = playerIds.every(pid => 
+          lobby.gameState.bids.hasOwnProperty(pid)
+        );
+        
+        if (allPlayersDecided) {
+          // Check if anyone has a bid > 0 (not passed)
+          const hasValidBid = Object.values(lobby.gameState.bids).some(bid => bid > 0);
+          if (hasValidBid) {
+            // Clear timer and transition to listing
+            this.clearPhaseTimer(lobbyId);
+            setTimeout(() => this.transitionToListing(lobbyId), 1000); // Small delay for UI
+          } else {
+            // Everyone passed - start no contest listing
+            this.clearPhaseTimer(lobbyId);
+            setTimeout(() => this.startNoContestListing(lobbyId, playerId), 1000);
+          }
+        }
       }
     }
   }
@@ -1125,6 +1375,9 @@ class GameService {
             lastActivity: Date.now()
           });
           
+          // Start phase timer for no contest listing
+          this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'listing'));
+          
           console.log('No contest listing started with 1 item target');
         }
       } catch (error) {
@@ -1196,6 +1449,9 @@ class GameService {
             lastActivity: Date.now()
           });
           
+          // Start phase timer for listing
+          this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'listing'));
+          
           console.log('Transitioned to listing phase');
         }
       } catch (error) {
@@ -1232,6 +1488,9 @@ class GameService {
         
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
+        
+        // Start phase timer for listing
+        this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'listing'));
       }
     }
   }
@@ -1368,11 +1627,17 @@ class GameService {
           const lobbyData = lobbySnap.data();
           const gameState = lobbyData.gameState;
           
+          console.log(`Game state phase: ${gameState.phase}`);
+          console.log(`Game state listerId: ${gameState.listerId}`);
+          console.log(`Submitting player ID: ${playerId}`);
+          
           if (gameState.phase !== 'listing') {
+            console.error(`Not in listing phase. Current phase: ${gameState.phase}`);
             throw new Error('Not in listing phase');
           }
           
           if (gameState.listerId !== playerId) {
+            console.error(`Player ${playerId} is not the lister. Current lister: ${gameState.listerId}`);
             throw new Error('Only the high bidder can submit items');
           }
           
@@ -1589,6 +1854,11 @@ class GameService {
             lastActivity: Date.now()
           });
           
+          // Start timer for summary phase if not game end
+          if (updatedGameState.phase === 'summary') {
+            this.startPhaseTimer(lobbyId, 10 * 1000, () => this.handlePhaseTimeout(lobbyId, 'summary'));
+          }
+          
           console.log('Listing phase completed, scores updated');
           return updatedGameState;
         }
@@ -1671,6 +1941,11 @@ class GameService {
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
         
+        // Start timer for summary phase if not game end
+        if (lobby.gameState.phase === 'summary') {
+          this.startPhaseTimer(lobbyId, 10 * 1000, () => this.handlePhaseTimeout(lobbyId, 'summary'));
+        }
+        
         return lobby.gameState;
       }
     }
@@ -1695,6 +1970,7 @@ class GameService {
             phase: 'bidding',
             currentBid: 0,
             highBidderId: null,
+            bids: {}, // Reset bids for new round
             listerId: null,
             submittedItems: [],
             phaseEndsAt: Date.now() + (30 * 1000), // 30 seconds for bidding
@@ -1705,6 +1981,9 @@ class GameService {
             gameState: updatedGameState,
             lastActivity: Date.now()
           });
+          
+          // Start timer for new bidding phase
+          this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'bidding'));
           
           console.log('Transitioned from summary to bidding phase');
           return updatedGameState;
@@ -1732,6 +2011,9 @@ class GameService {
         localLobbies.set(lobbyId, lobby);
         this.triggerLocalListeners(lobbyId, lobby);
         
+        // Start timer for new bidding phase
+        this.startPhaseTimer(lobbyId, 30 * 1000, () => this.handlePhaseTimeout(lobbyId, 'bidding'));
+        
         console.log('Transitioned from summary to bidding phase (local storage)');
         return lobby.gameState;
       }
@@ -1756,6 +2038,7 @@ class GameService {
             phase: 'bidding',
             currentBid: 0,
             highBidderId: null,
+            bids: {}, // Reset bids for new round
             listerId: null,
             submittedItems: [],
             phaseEndsAt: Date.now() + (30 * 1000), // 30 seconds for next bidding round
@@ -1782,6 +2065,7 @@ class GameService {
           phase: 'bidding',
           currentBid: 0,
           highBidderId: null,
+          bids: {}, // Reset bids for new round
           listerId: null,
           submittedItems: [],
           phaseEndsAt: Date.now() + (30 * 1000),

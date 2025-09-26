@@ -28,7 +28,7 @@ export default function TestValidation() {
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
+    <div className="min-h-screen pt-14" style={{ padding: '20px', fontFamily: 'Arial' }}>
       <h1>Validation Test Page</h1>
       
       <div style={{ marginBottom: '20px' }}>

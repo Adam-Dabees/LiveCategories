@@ -2,97 +2,143 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Enhanced hover effects and animations */
+/* Glassy Design System */
 @layer utilities {
-  
-  
-  
-  /* Smooth 3D transforms */
-  .card-3d {
-    transform-style: preserve-3d;
-    perspective: 1000px;
+  /* Universal rounded corners */
+  .rounded-4xl-universal {
+    border-radius: 2rem !important;
   }
   
-  /* Enhanced hover animations */
-  .hover-lift {
-    transition: all 0s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Glass morphism effects */
+  .glass-card {
+    @apply rounded-4xl;
+    background: rgba(203, 228, 255, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   }
   
-  .hover-lift:hover {
-    transform: translateY(-5px) scale(1.02);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  .glass-card-dark {
+    @apply rounded-4xl;
+    background: rgba(55, 65, 81, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
   
-  /* Gradient text animation */
-  .gradient-text {
-    background: linear-gradient(45deg, #667eea, #764ba2);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: gradient-shift 3s ease infinite;
+  .glass-button {
+    @apply rounded-4xl;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  @keyframes gradient-shift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+  .glass-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   }
   
-  /* Pulse animation for interactive elements */
-  .pulse-glow {
-    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  .glass-button-accent {
+    @apply rounded-4xl;
+    background: rgba(135, 206, 235, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(135, 206, 235, 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #1e40af;
   }
   
-  @keyframes pulse-glow {
-    0%, 100% {
+  .glass-button-accent:hover {
+    background: rgba(135, 206, 235, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(135, 206, 235, 0.3);
+  }
+  
+  .glass-navbar {
+    background: rgba(255, 230, 203, 0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Loading animations */
+  .fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  
+  .fade-in-scale {
+    animation: fadeInScale 0.8s ease-out forwards;
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+  
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fadeInScale {
+    to {
       opacity: 1;
       transform: scale(1);
     }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.05);
-    }
-  }
-}
-
-@layer base {
-  html {
-    font-family: 'Inter', system-ui, sans-serif;
   }
   
-  body {
-    @apply bg-gray-50 text-gray-900;
+  /* Clean focus states */
+  .focus-glass:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(135, 206, 235, 0.5);
+  }
+  
+  .font-rubik {
+    font-family: 'Rubik', sans-serif;
   }
 }
 
+/* Component styles */
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply glass-button-accent text-blue-800 font-medium py-3 px-6 rounded-4xl focus-glass;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply glass-button opacity-80 text-gray-700 font-medium py-2 px-4 rounded-4xl focus-glass;
   }
   
-  .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  .card-base {
+    @apply glass-card rounded-4xl p-6;
   }
   
-  .input-field {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  .input-glass {
+    @apply glass-card px-4 py-3 rounded-4xl focus-glass text-gray-800 placeholder-gray-500;
   }
   
-  .card {
-    @apply bg-white rounded-xl shadow-lg border border-gray-200;
+  .input-glass-dark {
+    @apply glass-card-dark px-4 py-3 rounded-4xl focus-glass text-gray-100 placeholder-gray-300;
   }
   
   .timer-critical {
-    @apply animate-pulse-red text-red-600 font-bold;
+    @apply text-red-600 font-bold;
   }
   
   .timer-warning {
-    @apply animate-bounce-slow text-orange-500 font-semibold;
+    @apply text-orange-500 font-semibold;
   }
 }
-

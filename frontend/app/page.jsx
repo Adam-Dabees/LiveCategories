@@ -36,19 +36,6 @@ const categoryIcons = {
   default: Gamepad2,
 };
 
-const categoryColors = {
-  music: 'from-purple-500 via-violet-600 to-fuchsia-600',
-  countries: 'from-green-500 via-emerald-600 to-teal-600',
-  animals: 'from-pink-500 via-rose-600 to-red-500',
-  fruits: 'from-orange-500 via-amber-600 to-yellow-500',
-  books: 'from-indigo-500 via-blue-600 to-cyan-600',
-  movies: 'from-red-500 via-pink-600 to-rose-500',
-  sports: 'from-yellow-500 via-orange-600 to-red-500',
-  vehicles: 'from-blue-500 via-cyan-600 to-teal-500',
-  // Fallback for any new categories
-  default: 'from-gray-500 via-gray-600 to-gray-700',
-};
-
 export default function HomePage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,10 +157,10 @@ export default function HomePage() {
         
         // Navigate to lobby page - the lobby page will handle category detection
         if (result.category && result.category !== 'unknown') {
-          router.push(`/lobby?code=${result.lobby_code}&category=${result.category}`);
+          router.push(`/lobby?lobbyCode=${result.lobby_code}&category=${result.category}`);
         } else {
           // For Firestore lobbies where category is unknown, let the lobby page figure it out
-          router.push(`/lobby?code=${result.lobby_code}`);
+          router.push(`/lobby?lobbyCode=${result.lobby_code}`);
         }
       } catch (error) {
         console.error('Failed to join lobby:', error);
@@ -186,162 +173,76 @@ export default function HomePage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center justify-center space-y-4">
-          <div className="w-16 h-16 flex items-center justify-center">
-            <Gamepad2 className="w-12 h-12 text-primary-600" />
+      <div className="min-h-screen flex items-center justify-center pt-14">
+        <div className="glass-card rounded-4xl p-8 fade-in-scale">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 glass-button rounded-4xl flex items-center justify-center">
+              <Gamepad2 className="w-12 h-12 text-gray-700" />
+            </div>
+            <p className="text-gray-700 text-lg font-medium">
+              {loading ? 'Creating lobby...' : 'Loading...'}
+            </p>
           </div>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-gray-600 text-lg font-medium"
-          >
-            {loading ? 'Creating lobby...' : 'Loading...'}
-          </motion.p>
         </div>
       </div>
     );
   }
 
-  // Remove this check - allow access without login
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen font-rubik pt-14">
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 text-white">
-        {/* Animated background elements */}
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/5 to-transparent transform -skew-x-12 -translate-x-full animate-pulse"></div>
-          <div className="absolute top-1/4 right-0 w-96 h-96 bg-gradient-to-l from-pink-500/20 to-transparent rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-gradient-to-r from-yellow-500/20 to-transparent rounded-full blur-3xl"></div>
-        </div>
-        
-        <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-12 sm:py-20">
+      <div className="relative overflow-hidden py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            {/* Main title with enhanced styling */}
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="mb-4 sm:mb-6"
+            <motion.h1 
+              className="text-4xl sm:text-6xl md:text-7xl font-black mb-6 text-gray-800 fade-in-up"
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
             >
-              <h1 className="text-3xl sm:text-5xl md:text-7xl font-black mb-2 sm:mb-4 bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent leading-tight">
-                🎯 Choose Your
-                <br />
-                <span className="bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 bg-clip-text text-transparent">
-                  Battle Arena
-                </span>
-              </h1>
-            </motion.div>
+              Choose Your
+              <br />
+              <span className="text-gray-600">Battle Arena</span>
+            </motion.h1>
             
-            {/* Subtitle with better styling */}
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-base sm:text-xl md:text-3xl text-blue-100 mb-6 sm:mb-12 font-semibold leading-relaxed px-2"
+              className="text-xl md:text-2xl text-gray-600 mb-12 font-medium fade-in-up stagger-1"
             >
-              ⚡ Lightning-fast knowledge battles with friends!
-              <br />
-              <span className="text-sm sm:text-lg md:text-xl text-blue-200">
-                Who's the ultimate category champion? 🏆
-              </span>
+              Lightning-fast knowledge battles with friends
             </motion.p>
             
-            {/* Enhanced feature badges */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
-              className="flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-4 mb-4 sm:mb-8 px-2"
+              className="flex flex-col sm:flex-row justify-center gap-4 mb-8 fade-in-up stagger-2"
             >
-              {/* Real-time Multiplayer Badge */}
-              <div className="group relative">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl sm:rounded-2xl px-4 sm:px-8 py-2 sm:py-4 shadow-2xl border-2 border-white/20 backdrop-blur-sm">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Users className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-                    </motion.div>
-                    <div>
-                      <div className="text-sm sm:text-lg font-bold text-white whitespace-nowrap">Real-time Multiplayer</div>
-                      <div className="text-xs sm:text-sm text-green-100 whitespace-nowrap">Live battles with friends</div>
-                    </div>
+              <div className="glass-card rounded-4xl px-6 py-4">
+                <div className="flex items-center space-x-3">
+                  <Users className="w-6 h-6 text-gray-700" />
+                  <div>
+                    <div className="text-lg font-bold text-gray-800">Real-time Multiplayer</div>
+                    <div className="text-sm text-gray-600">Live battles with friends</div>
                   </div>
                 </div>
-                {/* Glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl sm:rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300 -z-10"></div>
               </div>
               
-              {/* Lightning Fast Badge */}
-              <div className="group relative">
-                <div className="bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl sm:rounded-2xl px-4 sm:px-8 py-2 sm:py-4 shadow-2xl border-2 border-white/20 backdrop-blur-sm">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <span className="text-lg sm:text-2xl">⚡</span>
-                    </motion.div>
-                    <div>
-                      <div className="text-sm sm:text-lg font-bold text-white whitespace-nowrap">Lightning Fast</div>
-                      <div className="text-xs sm:text-sm text-yellow-100 whitespace-nowrap">Instant responses</div>
-                    </div>
+              <div className="glass-card rounded-4xl px-6 py-4">
+                <div className="flex items-center space-x-3">
+                  <Search className="w-6 h-6 text-gray-700" />
+                  <div>
+                    <div className="text-lg font-bold text-gray-800">Lightning Fast</div>
+                    <div className="text-sm text-gray-600">Instant responses</div>
                   </div>
                 </div>
-                {/* Glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl sm:rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300 -z-10"></div>
-              </div>
-              
-              {/* Brain Power Badge */}
-              <div className="group relative">
-                <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl sm:rounded-2xl px-4 sm:px-8 py-2 sm:py-4 shadow-2xl border-2 border-white/20 backdrop-blur-sm">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <motion.div
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <span className="text-lg sm:text-2xl">🧠</span>
-                    </motion.div>
-                    <div>
-                      <div className="text-sm sm:text-lg font-bold text-white whitespace-nowrap">Brain Power</div>
-                      <div className="text-xs sm:text-sm text-purple-100 whitespace-nowrap">Test your knowledge</div>
-                    </div>
-                  </div>
-                </div>
-                {/* Glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl sm:rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300 -z-10"></div>
-              </div>
-            </motion.div>
-            
-            {/* Call to action */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-              className="text-center"
-            >
-              <div className="inline-flex items-center space-x-2 text-blue-200 text-sm sm:text-lg font-semibold">
-                <motion.span
-                  animate={{ x: [0, 5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  👇
-                </motion.span>
-                <span className="whitespace-nowrap">Scroll down to start your battle!</span>
-                <motion.span
-                  animate={{ x: [0, -5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  👇
-                </motion.span>
               </div>
             </motion.div>
           </motion.div>
@@ -349,96 +250,56 @@ export default function HomePage() {
       </div>
 
       {/* Categories Grid */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
         >
           {categories.map((category, index) => {
             const IconComponent = categoryIcons[category.name] || categoryIcons.default;
-            const colorClass = categoryColors[category.name] || categoryColors.default;
             const categoryName = category.displayName || category.display_name || category.name;
             const categoryDesc = category.description || 'Test your knowledge!';
             
             return (
               <motion.div
                 key={category.name}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                whileHover={{ 
-                  scale: 1.05, 
-                  y: -5,
-                  rotateY: 2,
-                  rotateX: 2
-                }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(category)}
-                className="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl p-4 sm:p-8 cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-0 group border border-gray-100 flex flex-col min-h-[240px] sm:min-h-[320px]"
-                style={{
-                  transformStyle: 'preserve-3d',
-                  perspective: '1000px'
-                }}
+                className={`glass-card rounded-4xl p-6 cursor-pointer transition-all duration-300 group min-h-[200px] sm:min-h-[240px] flex flex-col justify-between fade-in-scale stagger-${Math.min(index + 1, 6)}`}
               >
-                {/* Background gradient overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${colorClass} opacity-0 group-hover:opacity-5 transition-opacity duration-0`}></div>
-                
-                {/* Animated background pattern */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-3 transition-opacity duration-0">
-                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-0"></div>
-                </div>
-                
-                <div className="relative z-10 flex flex-col items-center text-center flex-1 justify-between">
-                  {/* Icon with enhanced animation */}
+                                <div className="text-center flex-1 flex flex-col justify-between">
                   <motion.div 
-                    className={`w-12 h-12 sm:w-20 sm:h-20 bg-gradient-to-br ${colorClass} rounded-lg sm:rounded-2xl flex items-center justify-center mb-2 sm:mb-6 group-hover:scale-110 transition-all duration-0 shadow-lg group-hover:shadow-xl flex-shrink-0`}
-                    whileHover={{ rotate: 180, scale: 1.1 }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="glass-button-accent rounded-4xl w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center mx-auto mb-4 group-hover:scale-105"
+                    whileHover={{ rotate: 5 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    <IconComponent className="w-6 h-6 sm:w-10 sm:h-10 text-white group-hover:scale-105 transition-transform duration-0" />
+                    <IconComponent className="w-8 h-8 sm:w-10 sm:h-10 text-blue-700" />
                   </motion.div>
                   
-                  {/* Category name with better typography */}
-                  <h3 className="text-sm sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3 group-hover:text-gray-800 transition-colors duration-0 text-center leading-tight line-clamp-2">
-                    {categoryName}
-                  </h3>
-                  
-                  {/* Description with better styling - hidden on mobile */}
-                  <div className="hidden sm:flex h-12 mb-6 items-center justify-center">
-                    <p className="text-gray-600 text-base leading-relaxed group-hover:text-gray-700 transition-colors duration-0 text-center line-clamp-2">
+                  <div className="flex-1">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-800 transition-colors">
+                      {categoryName}
+                    </h3>
+                    
+                    <p className="text-sm text-gray-600 mb-4 hidden sm:block">
                       {categoryDesc}
                     </p>
                   </div>
                   
-                  {/* Play button with enhanced animation */}
-                  <div className="flex items-center justify-center flex-shrink-0">
-                    <motion.div 
-                      className="flex items-center justify-center space-x-1 sm:space-x-3 text-primary-600 group-hover:text-primary-700 transition-colors duration-0"
-                      whileHover={{ x: 5 }}
-                      transition={{ duration: 0.2, ease: "easeInOut" }}
-                    >
-                      <motion.div
-                        className="w-6 h-6 sm:w-10 sm:h-10 bg-primary-100 group-hover:bg-primary-600 rounded-full flex items-center justify-center transition-all duration-0 flex-shrink-0"
-                        whileHover={{ scale: 1.2 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
-                      >
-                        <Play className="w-3 h-3 sm:w-5 sm:h-5 ml-0.5 text-primary-600 group-hover:text-white transition-colors duration-0" />
-                      </motion.div>
-                      <span className="font-bold text-xs sm:text-lg text-center leading-none whitespace-nowrap">Start Playing</span>
-                      <motion.div
-                        className="hidden sm:block w-2 h-2 bg-primary-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-0 flex-shrink-0"
-                        animate={{ scale: [1, 1.5, 1] }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      ></motion.div>
-                    </motion.div>
-                  </div>
+                  <motion.div 
+                    className="glass-button-accent rounded-4xl px-4 py-2 text-blue-700 group-hover:text-blue-800 transition-colors flex items-center justify-center space-x-2"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <Play className="w-4 h-4" />
+                    <span className="font-medium text-sm">Start Playing</span>
+                  </motion.div>
                 </div>
-                
-                {/* Decorative elements */}
-                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 w-1 h-1 sm:w-2 sm:h-2 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-0"></div>
-                <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 w-0.5 h-0.5 sm:w-1 sm:h-1 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-0"></div>
               </motion.div>
             );
           })}
@@ -456,18 +317,24 @@ export default function HomePage() {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl p-8 max-w-md w-full mx-4"
+            className="glass-card-dark rounded-4xl p-8 max-w-md w-full mx-4 fade-in-scale"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              <div className="w-16 h-16 glass-button rounded-4xl flex items-center justify-center mx-auto mb-4">
+                {(() => {
+                  const IconComponent = categoryIcons[selectedCategory.name] || categoryIcons.default;
+                  return <IconComponent className="w-8 h-8 text-gray-400" />;
+                })()}
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">
                 {selectedCategory.displayName || selectedCategory.display_name || selectedCategory.name}
               </h3>
-              <p className="text-gray-600 mb-3">
+              <p className="text-gray-300 mb-4">
                 How would you like to play?
               </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center justify-center space-x-2 text-blue-700">
+              <div className="glass-card rounded-4xl p-4">
+                <div className="flex items-center justify-center space-x-2 text-gray-300">
                   <Users className="w-4 h-4" />
                   <span className="text-sm font-medium">
                     Real-time multiplayer - See other players instantly!
@@ -482,7 +349,7 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCreateLobby}
-                className="w-full p-4 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                className="w-full glass-button text-gray-300 py-3 px-6 rounded-4xl font-medium flex items-center justify-center space-x-3"
               >
                 <Plus className="w-5 h-5" />
                 <span className="font-medium">Create New Lobby</span>
@@ -493,27 +360,27 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleJoinRandom}
-                className="w-full p-4 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                className="w-full glass-button text-gray-300 py-3 px-6 rounded-4xl font-medium flex items-center justify-center space-x-3"
               >
                 <Search className="w-5 h-5" />
                 <span className="font-medium">Join Random Game</span>
               </motion.button>
 
               {/* Join with Code */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <input
                   type="text"
                   value={lobbyCode}
                   onChange={(e) => setLobbyCode(e.target.value)}
                   placeholder="Enter lobby code"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full input-glass-dark"
                 />
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleJoinWithCode}
                   disabled={!lobbyCode.trim()}
-                  className="w-full p-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                  className="w-full glass-button text-gray-300 py-3 px-6 rounded-4xl font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-3"
                 >
                   <Hash className="w-5 h-5" />
                   <span className="font-medium">Join with Code</span>
@@ -521,12 +388,14 @@ export default function HomePage() {
               </div>
             </div>
 
-            <button
+            <motion.button
               onClick={() => setShowLobbyOptions(false)}
-              className="w-full mt-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full mt-6 py-3 text-gray-300 hover:text-white transition-colors glass-button rounded-4xl"
             >
               Cancel
-            </button>
+            </motion.button>
           </motion.div>
         </motion.div>
       )}

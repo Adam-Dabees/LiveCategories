@@ -5,18 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Gamepad2, 
   User, 
   LogOut, 
   BarChart3, 
-  Home,
-  Menu,
-  X
+  Home
 } from 'lucide-react';
 
 export default function Navbar() {
   const [showProfile, setShowProfile] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   
@@ -91,130 +87,65 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+      <nav className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-[95vw] max-w-6xl">
+        <div className="glass-navbar rounded-full px-6 py-2">
+          <div className="flex justify-between items-center">
             {/* Logo/Home Button */}
             <motion.button
               onClick={handleHomeClick}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors"
+              className="flex items-center space-x-3 text-gray-800 hover:text-gray-900 transition-colors font-rubik"
             >
-              <Gamepad2 className="w-8 h-8" />
-              <span className="text-xl font-bold">LiveCategories</span>
+              <Home className="w-5 h-5" />
+              <span className="text-lg font-bold">LiveCategories</span>
             </motion.button>
 
             {/* Desktop Menu */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               {user ? (
                 <>
-                  <button
+                  <motion.button
                     onClick={() => setShowProfile(true)}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="glass-button-accent rounded-full p-2 text-blue-700 hover:text-blue-800"
                   >
-                    <User className="w-5 h-5" />
-                    <span>{user?.displayName || user?.email?.split('@')[0]}</span>
-                  </button>
+                    <User className="w-4 h-4" />
+                  </motion.button>
                   
-                  <button
+                  <motion.button
                     onClick={handleStatsClick}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="glass-button-accent rounded-full p-2 text-blue-700 hover:text-blue-800"
                   >
-                    <BarChart3 className="w-5 h-5" />
-                    <span>Stats</span>
-                  </button>
+                    <BarChart3 className="w-4 h-4" />
+                  </motion.button>
                   
-                  <button
+                  <motion.button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="glass-button rounded-full p-2 text-red-500 hover:text-red-600"
                   >
-                    <LogOut className="w-5 h-5" />
-                    <span>Logout</span>
-                  </button>
+                    <LogOut className="w-4 h-4" />
+                  </motion.button>
                 </>
               ) : (
-                <button
+                <motion.button
                   onClick={() => router.push('/login')}
-                  className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="glass-button-accent rounded-full px-4 py-2 text-blue-700 hover:text-blue-800 flex items-center space-x-2 font-rubik"
                 >
-                  <User className="w-5 h-5" />
+                  <User className="w-4 h-4" />
                   <span>Login</span>
-                </button>
+                </motion.button>
               )}
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className="md:hidden p-2 text-gray-700 hover:text-primary-600 transition-colors"
-            >
-              {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {showMobileMenu && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white border-t border-gray-200"
-            >
-              <div className="px-4 py-2 space-y-2">
-                {user ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowProfile(true);
-                        setShowMobileMenu(false);
-                      }}
-                      className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
-                    >
-                      <User className="w-5 h-5" />
-                      <span>{user?.displayName || user?.email?.split('@')[0]}</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        handleStatsClick();
-                        setShowMobileMenu(false);
-                      }}
-                      className="flex items-center space-x-2 w-full text-left py-2 text-gray-700 hover:text-primary-600 transition-colors"
-                    >
-                      <BarChart3 className="w-5 h-5" />
-                      <span>Statistics</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setShowMobileMenu(false);
-                      }}
-                      className="flex items-center space-x-2 w-full text-left py-2 text-red-600 hover:text-red-700 transition-colors"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      <span>Logout</span>
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      router.push('/login');
-                      setShowMobileMenu(false);
-                    }}
-                    className="flex items-center space-x-2 w-full text-left py-2 text-primary-600 hover:text-primary-700 transition-colors"
-                  >
-                    <User className="w-5 h-5" />
-                    <span>Login</span>
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </nav>
 
       {/* Profile Dropdown */}
@@ -224,43 +155,47 @@ export default function Navbar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
             onClick={() => setShowProfile(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
+              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4 fade-in-scale"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <User className="w-8 h-8 text-primary-600" />
+                <div className="w-16 h-16 glass-button rounded-4xl flex items-center justify-center mx-auto mb-4">
+                  <User className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2 font-rubik">
                   {user?.displayName || user?.email?.split('@')[0]}
                 </h3>
-                <p className="text-gray-600 mb-4">{user?.email}</p>
-                <div className="space-y-2">
-                  <button
+                <p className="text-gray-300 mb-4 font-rubik">{user?.email}</p>
+                <div className="space-y-3">
+                  <motion.button
                     onClick={() => {
                       router.push('/profile');
                       setShowProfile(false);
                     }}
-                    className="w-full btn-primary"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full glass-button text-gray-300 py-2 rounded-4xl font-rubik"
                   >
                     View Statistics
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     onClick={() => {
                       handleLogout();
                       setShowProfile(false);
                     }}
-                    className="w-full btn-danger"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full glass-button text-red-400 py-2 rounded-4xl font-rubik"
                   >
                     Logout
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
@@ -275,40 +210,44 @@ export default function Navbar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
             onClick={cancelLeave}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
+              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4 fade-in-scale"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Home className="w-8 h-8 text-orange-600" />
+                <div className="w-16 h-16 glass-button rounded-4xl flex items-center justify-center mx-auto mb-4">
+                  <Home className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2 font-rubik">
                   Leave Current Lobby?
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-300 mb-6 font-rubik">
                   Are you sure you want to leave the current lobby and go to the categories page? 
                   You'll need to rejoin if you want to continue playing.
                 </p>
                 <div className="flex space-x-3">
-                  <button
+                  <motion.button
                     onClick={cancelLeave}
-                    className="flex-1 btn-secondary"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 glass-button text-gray-300 py-2 rounded-4xl font-rubik"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     onClick={confirmLeave}
-                    className="flex-1 btn-primary"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 glass-button text-gray-300 py-2 rounded-4xl font-rubik"
                   >
                     Yes, Leave Lobby
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
@@ -318,4 +257,3 @@ export default function Navbar() {
     </>
   );
 }
-

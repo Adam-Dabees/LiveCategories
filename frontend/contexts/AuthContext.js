@@ -26,7 +26,17 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!auth) {
-      // Firebase not initialized, skip auth state monitoring
+      // Firebase not initialized, create a demo user for testing
+      console.log('Firebase not available, creating demo user');
+      const demoUser = {
+        id: 'demo-user-' + Math.random().toString(36).substr(2, 9),
+        username: 'DemoUser',
+        email: 'demo@example.com',
+        display_name: 'Demo User',
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString()
+      };
+      setUser(demoUser);
       setLoading(false);
       return;
     }
@@ -52,7 +62,18 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     if (!auth) {
-      return { success: false, error: 'Firebase authentication not available' };
+      // Demo login when Firebase is not available
+      console.log('Firebase not available, using demo login');
+      const demoUser = {
+        id: 'demo-user-' + Math.random().toString(36).substr(2, 9),
+        username: email.split('@')[0] || 'DemoUser',
+        email: email,
+        display_name: email.split('@')[0] || 'Demo User',
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString()
+      };
+      setUser(demoUser);
+      return { success: true };
     }
     
     try {
@@ -68,7 +89,18 @@ export function AuthProvider({ children }) {
 
   const register = async (username, email, password) => {
     if (!auth) {
-      return { success: false, error: 'Firebase authentication not available' };
+      // Demo registration when Firebase is not available
+      console.log('Firebase not available, using demo registration');
+      const demoUser = {
+        id: 'demo-user-' + Math.random().toString(36).substr(2, 9),
+        username: username,
+        email: email,
+        display_name: username,
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString()
+      };
+      setUser(demoUser);
+      return { success: true };
     }
     
     try {
@@ -89,7 +121,9 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     if (!auth) {
-      return { success: false, error: 'Firebase authentication not available' };
+      // Demo logout when Firebase is not available
+      setUser(null);
+      return { success: true };
     }
     
     try {

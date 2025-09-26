@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserStats } from '../../lib/firestore';
+import { getUserState, getUserStats } from '../../lib/firestore';
 import { motion } from 'framer-motion';
 import { 
   Trophy, 
@@ -16,7 +16,8 @@ import {
   Crown,
   Medal,
   Flame,
-  Gamepad2
+  Gamepad2,
+  User
 } from 'lucide-react';
 
 const achievementIcons = {
@@ -82,16 +83,18 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 flex items-center justify-center"
-          >
-            <Gamepad2 className="w-12 h-12 text-primary-600" />
-          </motion.div>
-          <p className="text-gray-600 text-lg font-medium">Loading your profile...</p>
+      <div className="min-h-screen font-rubik flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FFE6CB 0%, #CBE4FF 100%)' }}>
+        <div className="glass-card rounded-4xl p-8">
+          <div className="flex flex-col items-center space-y-4">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-8 h-8"
+            >
+              <User className="w-full h-full text-gray-600" />
+            </motion.div>
+            <p className="text-gray-700 text-lg">Loading your profile...</p>
+          </div>
         </div>
       </div>
     );
@@ -99,9 +102,9 @@ export default function ProfilePage() {
 
   if (!stats) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Profile Not Found</h1>
+      <div className="min-h-screen font-rubik flex items-center justify-center pt-14" style={{ background: 'linear-gradient(135deg, #FFE6CB 0%, #CBE4FF 100%)' }}>
+        <div className="glass-card rounded-4xl p-8 text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Profile Not Found</h1>
           <p className="text-gray-600">Unable to load your profile data.</p>
         </div>
       </div>
@@ -109,15 +112,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen font-rubik py-8 pt-14" style={{ background: 'linear-gradient(135deg, #FFE6CB 0%, #CBE4FF 100%)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">
             Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'Player'}!
           </h1>
           <p className="text-xl text-gray-600">Your gaming journey and achievements</p>
@@ -126,30 +129,30 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Stats Overview */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="lg:col-span-2 space-y-6"
+            className="lg:col-span-2 space-y-6 fade-in-up stagger-1"
           >
             {/* Main Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="glass-card rounded-4xl p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Games</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.totalGames || 0}</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.totalGames || 0}</p>
                   </div>
-                  <div className="p-3 bg-blue-100 rounded-full">
-                    <Gamepad2 className="w-6 h-6 text-blue-600" />
+                  <div className="glass-button rounded-4xl p-3">
+                    <Gamepad2 className="w-6 h-6 text-gray-700" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="glass-card rounded-4xl p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Games Won</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.gamesWon || 0}</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.gamesWon || 0}</p>
                   </div>
                   <div className="p-3 bg-green-100 rounded-full">
                     <Trophy className="w-6 h-6 text-green-600" />
@@ -157,11 +160,11 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="bg-white rounded-4xl p-6 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Win Rate</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.winRate || 0}%</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.winRate || 0}%</p>
                   </div>
                   <div className="p-3 bg-yellow-100 rounded-full">
                     <Target className="w-6 h-6 text-yellow-600" />
@@ -173,7 +176,7 @@ export default function ProfilePage() {
 
             {/* Streaks */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-6 text-white">
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-4xl p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-orange-100">Current Streak</p>
@@ -183,7 +186,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl p-6 text-white">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-4xl p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-blue-100">Best Streak</p>
@@ -196,17 +199,17 @@ export default function ProfilePage() {
 
             {/* Category Performance */}
             {stats.categoriesPlayed && stats.categoriesPlayed.length > 0 && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Category Performance</h3>
+              <div className="bg-white rounded-4xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Category Performance</h3>
                 <div className="space-y-3">
                   {stats.categoriesPlayed.map((category, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 capitalize">{category.name}</p>
+                        <p className="font-medium text-gray-800 capitalize">{category.name}</p>
                         <p className="text-sm text-gray-600">{category.games} games, {category.wins} wins</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-gray-900">
+                        <p className="font-bold text-gray-800">
                           {category.games > 0 ? Math.round((category.wins / category.games) * 100) : 0}%
                         </p>
                         <p className="text-sm text-gray-600">win rate</p>
@@ -226,8 +229,8 @@ export default function ProfilePage() {
             transition={{ delay: 0.2 }}
             className="space-y-6"
           >
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+            <div className="bg-white rounded-4xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                 <Award className="w-6 h-6 mr-2 text-yellow-500" />
                 Achievements
               </h3>
@@ -248,7 +251,7 @@ export default function ProfilePage() {
                           <IconComponent className="w-5 h-5 text-yellow-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-gray-800">
                             {achievementNames[achievement] || achievement}
                           </p>
                           <p className="text-sm text-gray-600">
@@ -269,7 +272,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Quick Stats */}
-            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-6 text-white">
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-4xl p-6 text-white">
               <h3 className="text-xl font-bold mb-4">Quick Stats</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">

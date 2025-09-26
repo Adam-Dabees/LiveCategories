@@ -1,20 +1,6 @@
-// pages/api/categories.js
+// app/api/categories/route.js
 
-export default function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function GET() {
   try {
     // Return available API-based categories
     const categories = [
@@ -28,9 +14,20 @@ export default function handler(req, res) {
       { name: 'vehicles', displayName: 'Auto Zone', description: 'Cars, trucks, and everything on wheels!' }
     ];
 
-    res.status(200).json(categories);
+    return Response.json(categories);
   } catch (error) {
-    console.error('Error loading categories:', error);
-    res.status(500).json({ error: 'Failed to load categories' });
+    console.error('Error getting categories:', error);
+    return Response.json({ error: 'Failed to get categories' }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

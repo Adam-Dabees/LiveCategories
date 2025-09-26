@@ -7,6 +7,9 @@ export default {
   ],
   theme: {
     extend: {
+      borderRadius: {
+        '4xl': '2rem',
+      },
       colors: {
         primary: {
           50: '#eff6ff',
