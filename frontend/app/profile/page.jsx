@@ -112,16 +112,17 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen font-rubik py-8 pt-14" style={{ background: 'linear-gradient(135deg, #FFE6CB 0%, #CBE4FF 100%)' }}>
+    <div className="min-h-screen font-rubik py-8 pt-24" style={{ background: 'linear-gradient(135deg, #FFE6CB 0%, #CBE4FF 100%)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'Player'}!
+            Welcome back, {user?.username || user?.displayName || user?.display_name || user?.email?.split('@')[0] || 'Player'}!
           </h1>
           <p className="text-xl text-gray-600">Your gaming journey and achievements</p>
         </motion.div>
@@ -129,14 +130,19 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Stats Overview */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="lg:col-span-2 space-y-6 fade-in-up stagger-1"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="lg:col-span-2 space-y-6"
           >
             {/* Main Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass-card rounded-4xl p-6">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="glass-card rounded-4xl p-6"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Games</p>
@@ -146,9 +152,14 @@ export default function ProfilePage() {
                     <Gamepad2 className="w-6 h-6 text-gray-700" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="glass-card rounded-4xl p-6">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="glass-card rounded-4xl p-6"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Games Won</p>
@@ -158,9 +169,14 @@ export default function ProfilePage() {
                     <Trophy className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-white rounded-4xl p-6 shadow-lg">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="glass-card rounded-4xl p-6"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Win Rate</p>
@@ -170,13 +186,18 @@ export default function ProfilePage() {
                     <Target className="w-6 h-6 text-yellow-600" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
             </div>
 
             {/* Streaks */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-4xl p-6 text-white">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className="bg-gradient-to-r from-orange-500 to-red-500 rounded-4xl p-6 text-white"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-orange-100">Current Streak</p>
@@ -184,9 +205,14 @@ export default function ProfilePage() {
                   </div>
                   <Flame className="w-8 h-8 text-orange-200" />
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-4xl p-6 text-white">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-4xl p-6 text-white"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-blue-100">Best Streak</p>
@@ -194,16 +220,27 @@ export default function ProfilePage() {
                   </div>
                   <Crown className="w-8 h-8 text-blue-200" />
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Category Performance */}
             {stats.categoriesPlayed && stats.categoriesPlayed.length > 0 && (
-              <div className="bg-white rounded-4xl p-6 shadow-lg">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.7 }}
+                className="glass-card rounded-4xl p-6"
+              >
                 <h3 className="text-xl font-bold text-gray-800 mb-4">Category Performance</h3>
                 <div className="space-y-3">
                   {stats.categoriesPlayed.map((category, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.4, delay: 0.8 + (index * 0.1) }}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
                       <div>
                         <p className="font-medium text-gray-800 capitalize">{category.name}</p>
                         <p className="text-sm text-gray-600">{category.games} games, {category.wins} wins</p>
@@ -214,22 +251,27 @@ export default function ProfilePage() {
                         </p>
                         <p className="text-sm text-gray-600">win rate</p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
 
           </motion.div>
 
           {/* Achievements Sidebar */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
             className="space-y-6"
           >
-            <div className="bg-white rounded-4xl p-6 shadow-lg">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="glass-card rounded-4xl p-6"
+            >
               <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                 <Award className="w-6 h-6 mr-2 text-yellow-500" />
                 Achievements
@@ -244,7 +286,7 @@ export default function ProfilePage() {
                         key={index}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
+                        transition={{ duration: 0.4, delay: 0.5 + (index * 0.1) }}
                         className="flex items-center space-x-3 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200"
                       >
                         <div className="p-2 bg-yellow-100 rounded-full">
@@ -269,10 +311,15 @@ export default function ProfilePage() {
                   <p className="text-sm text-gray-400">Keep playing to unlock achievements!</p>
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* Quick Stats */}
-            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-4xl p-6 text-white">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-4xl p-6 text-white"
+            >
               <h3 className="text-xl font-bold mb-4">Quick Stats</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
@@ -302,7 +349,7 @@ export default function ProfilePage() {
                   <span className="font-bold">{stats.categoriesPlayed?.length || 0}</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </div>

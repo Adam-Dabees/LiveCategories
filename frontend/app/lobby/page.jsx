@@ -158,6 +158,21 @@ function LobbyPageContent() {
     };
   }, [timeLeft]);
 
+  // Auto-advance bidding phase when timer runs out
+  useEffect(() => {
+    if (timeLeft === 0 && gameState?.phase === Phase.BIDDING) {
+      console.log('Bidding timer expired, auto-advancing to listing phase');
+      const handleAutoAdvance = async () => {
+        try {
+          await gameService.transitionToListing(lobbyCode || code);
+        } catch (error) {
+          console.error('Error auto-advancing from bidding:', error);
+        }
+      };
+      handleAutoAdvance();
+    }
+  }, [timeLeft, gameState?.phase, lobbyCode, code]);
+
   const initializeLobby = async () => {
     try {
       setLoading(true);
@@ -395,10 +410,30 @@ function LobbyPageContent() {
 
   const handlePlayAgain = async () => {
     try {
-      const currentLobbyCode = lobbyCode || code;
-      await gameService.resetToLobby(currentLobbyCode);
+      // Create a new lobby with the same category instead of resetting current one
+      const currentCategory = lobbyData?.category;
+      if (!currentCategory) {
+        console.error('No category found, redirecting to home');
+        router.push('/');
+        return;
+      }
+
+      console.log('Creating new lobby for category:', currentCategory);
+      
+      const response = await fetch(`/api/lobby/create?category=${encodeURIComponent(currentCategory)}&best_of=5`);
+      if (!response.ok) {
+        throw new Error('Failed to create new lobby');
+      }
+      
+      const data = await response.json();
+      console.log('New lobby created:', data);
+      
+      // Navigate to the new lobby
+      router.push(`/lobby?code=${data.lobbyCode}`);
     } catch (error) {
-      console.error('Failed to play again:', error);
+      console.error('Failed to create new lobby:', error);
+      // Fallback to home page
+      router.push('/');
     }
   };
 
@@ -533,7 +568,7 @@ function LobbyPageContent() {
                       <div className={`w-2 h-2 rounded-full ${
                         player.connected ? 'bg-green-500' : 'bg-gray-400'
                       }`}></div>
-                      <span className="text-sm text-gray-700 truncate">{player.name}</span>
+                      <span className="text-sm text-gray-700 truncate">{player.username || player.displayName || player.display_name || player.name}</span>
                       {playerId === lobbyData?.host && (
                         <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
                           Host
@@ -615,7 +650,7 @@ function LobbyPageContent() {
                     const player = lobbyData?.players?.[playerId];
                     return (
                       <div key={playerId} className="flex justify-between items-center p-2 bg-white rounded-lg">
-                        <span className="text-sm text-gray-700">{player?.name || 'Unknown'}</span>
+                        <span className="text-sm text-gray-700">{player?.username || player?.displayName || player?.display_name || player?.name || 'Unknown'}</span>
                         <span className="font-bold text-gray-800">{bid}</span>
                       </div>
                     );
@@ -652,7 +687,7 @@ function LobbyPageContent() {
                 <div className="text-center">
                   <button
                     onClick={handlePassBid}
-                    className="bg-gray-500 hover:bg-gray-600 px-8 py-3 text-white font-semibold rounded-4xl transition-colors"
+                    className="bg-orange-100 hover:bg-orange-200 px-8 py-3 text-gray-700 font-semibold rounded-4xl transition-colors border border-orange-200"
                   >
                     Pass
                   </button>
@@ -663,131 +698,172 @@ function LobbyPageContent() {
 
           {/* Listing Phase */}
           {gameState?.phase === Phase.LISTING && (
-          <div className="space-y-6">
-            {/* Timer Bar */}
-            <Timer title="Listing Time Remaining" maxTime={30} />
-            
-            <div className="text-center mb-6">
-              <p className="text-gray-600">
-                List <span className="font-bold">{gameState?.currentBid}</span> valid{' '}
-                <span className="font-semibold uppercase">{lobbyData?.category}</span> items
-              </p>
-            </div>
-
-            {/* Progress Display */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
-                <Target className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500 mb-1">Target Items</p>
-                <p className="font-bold text-gray-800 text-xl">{gameState?.currentBid}</p>
-              </div>
+            <div className="space-y-6">
+              {/* Timer Bar */}
+              <Timer title="Listing Time Remaining" maxTime={30} />
               
-              <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
-                <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                <p className="text-sm text-gray-500 mb-1">Valid Items</p>
-                <p className="font-bold text-green-600 text-xl">
-                  {gameState?.validItems?.[user?.id]?.length || 0}
-                </p>
-              </div>
-              
-              <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
-                <XCircle className="w-6 h-6 mx-auto mb-2 text-red-500" />
-                <p className="text-sm text-gray-500 mb-1">Invalid Items</p>
-                <p className="font-bold text-red-600 text-xl">
-                  {gameState?.invalidItems?.[user?.id]?.length || 0}
-                </p>
-                </div>
-              </div>
+              {/* Check if current user is the lister */}
+              {gameState?.listerId === user?.id ? (
+                // Active lister view
+                <div className="space-y-6">
+                  <div className="text-center mb-6">
+                    <p className="text-gray-600">
+                      List <span className="font-bold">{gameState?.currentBid}</span> valid{' '}
+                      <span className="font-semibold uppercase">{lobbyData?.category}</span> items
+                    </p>
+                  </div>
 
-              {/* Item Input */}
-              <div className="max-w-md mx-auto mb-6">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={itemInput}
-                    onChange={(e) => setItemInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSubmitItem()}
-                    placeholder={`Enter a ${lobbyData?.category || 'category'} item...`}
-                    className="flex-1 px-4 py-3 glass-button text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                  <button
-                    onClick={handleSubmitItem}
-                    disabled={!itemInput.trim()}
-                    className="glass-button-accent px-6 py-3 text-white font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+                  {/* Progress Display */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
+                      <Target className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-500 mb-1">Target Items</p>
+                      <p className="font-bold text-gray-800 text-xl">{gameState?.currentBid}</p>
+                    </div>
+                    
+                    <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
+                      <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
+                      <p className="text-sm text-gray-500 mb-1">Valid Items</p>
+                      <p className="font-bold text-green-600 text-xl">
+                        {gameState?.validItems?.[user?.id]?.length || 0}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center">
+                      <XCircle className="w-6 h-6 mx-auto mb-2 text-red-500" />
+                      <p className="text-sm text-gray-500 mb-1">Invalid Items</p>
+                      <p className="font-bold text-red-600 text-xl">
+                        {gameState?.invalidItems?.[user?.id]?.length || 0}
+                      </p>
+                      </div>
+                    </div>
 
-              {/* Last Submission Result */}
-              {submissionAnimation && lastSubmissionResult !== null && (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  className={`max-w-md mx-auto p-4 rounded-4xl text-center font-bold ${
-                    lastSubmissionResult 
-                      ? 'bg-green-100 text-green-700 border border-green-300' 
-                      : 'bg-red-100 text-red-700 border border-red-300'
-                  }`}
-                >
-                  {lastSubmissionResult ? (
-                    <div className="flex items-center justify-center space-x-2">
-                      <CheckCircle className="w-5 h-5" />
-                      <span>Valid item!</span>
+                    {/* Item Input */}
+                    <div className="max-w-md mx-auto mb-6">
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={itemInput}
+                          onChange={(e) => setItemInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSubmitItem()}
+                          placeholder={`Enter a ${lobbyData?.category || 'category'} item...`}
+                          className="flex-1 px-4 py-3 glass-button text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                        <button
+                          onClick={handleSubmitItem}
+                          disabled={!itemInput.trim()}
+                          className="glass-button-accent px-6 py-3 text-white font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center space-x-2">
-                      <XCircle className="w-5 h-5" />
-                      <span>Invalid item</span>
+
+                    {/* Last Submission Result */}
+                    {submissionAnimation && lastSubmissionResult !== null && (
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        className={`max-w-md mx-auto p-4 rounded-4xl text-center font-bold ${
+                          lastSubmissionResult 
+                            ? 'bg-green-100 text-green-700 border border-green-300' 
+                            : 'bg-red-100 text-red-700 border border-red-300'
+                        }`}
+                      >
+                        {lastSubmissionResult ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <CheckCircle className="w-5 h-5" />
+                            <span>Valid item!</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center space-x-2">
+                            <XCircle className="w-5 h-5" />
+                            <span>Invalid item</span>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Submitted Items Lists */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Valid Items */}
+                      <div>
+                        <h3 className="font-semibold text-green-700 mb-3 flex items-center">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Valid Items ({gameState?.validItems?.[user?.id]?.length || 0})
+                        </h3>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {(gameState?.validItems?.[user?.id] || []).map((item, index) => (
+                            <div key={index} className="bg-orange-50 border border-orange-100 rounded-4xl p-3 text-gray-700">
+                              {item}
+                            </div>
+                          ))}
+                          {(!gameState?.validItems?.[user?.id] || gameState.validItems[user.id].length === 0) && (
+                            <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center text-gray-500">
+                              No valid items yet
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Invalid Items */}
+                      <div>
+                        <h3 className="font-semibold text-red-700 mb-3 flex items-center">
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Invalid Items ({gameState?.invalidItems?.[user?.id]?.length || 0})
+                        </h3>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {(gameState?.invalidItems?.[user?.id] || []).map((item, index) => (
+                            <div key={index} className="bg-orange-50 border border-orange-100 rounded-4xl p-3 text-gray-700">
+                              {item}
+                            </div>
+                          ))}
+                          {(!gameState?.invalidItems?.[user?.id] || gameState.invalidItems[user.id].length === 0) && (
+                            <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center text-gray-500">
+                              No invalid items
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </motion.div>
+                </div>
+              ) : (
+                // Waiting view for non-lister
+                <div className="text-center space-y-6">
+                  <div className="glass-card p-8 max-w-md mx-auto">
+                    <Clock className="w-16 h-16 mx-auto mb-6 text-gray-400" />
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Listing Phase</h2>
+                    <p className="text-gray-600 mb-4">
+                      Place your bid on how many items you can list
+                    </p>
+                    <p className="text-gray-600">
+                      How many items can you list from <span className="font-bold uppercase">{lobbyData?.category || 'Loading...'}</span>?
+                    </p>
+                    
+                    <div className="mt-6">
+                      <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4">
+                        <p className="text-lg font-semibold text-gray-700">
+                          Waiting for {(() => {
+                            const listerPlayer = Object.entries(lobbyData?.players || {}).find(([id, _]) => id === gameState?.listerId);
+                            return listerPlayer ? (listerPlayer[1]?.username || listerPlayer[1]?.displayName || listerPlayer[1]?.display_name || listerPlayer[1]?.email?.split('@')[0] || 'player') : 'player';
+                          })()} to submit items...
+                        </p>
+                        <p className="text-sm text-gray-600 mt-2">
+                          They need to list <span className="font-bold">{gameState?.currentBid}</span> items from the category
+                        </p>
+                        
+                        <div className="mt-4 text-center">
+                          <div className="text-2xl font-bold text-gray-700">
+                            {gameState?.submittedItems?.filter(item => item.isValid).length || 0} / {gameState?.currentBid}
+                          </div>
+                          <p className="text-sm text-gray-600">Items submitted so far</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
-
-              {/* Submitted Items Lists */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Valid Items */}
-                <div>
-                  <h3 className="font-semibold text-green-700 mb-3 flex items-center">
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Valid Items ({gameState?.validItems?.[user?.id]?.length || 0})
-                  </h3>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {(gameState?.validItems?.[user?.id] || []).map((item, index) => (
-                      <div key={index} className="bg-orange-50 border border-orange-100 rounded-4xl p-3 text-gray-700">
-                        {item}
-                      </div>
-                    ))}
-                    {(!gameState?.validItems?.[user?.id] || gameState.validItems[user.id].length === 0) && (
-                      <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center text-gray-500">
-                        No valid items yet
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Invalid Items */}
-                <div>
-                  <h3 className="font-semibold text-red-700 mb-3 flex items-center">
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Invalid Items ({gameState?.invalidItems?.[user?.id]?.length || 0})
-                  </h3>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {(gameState?.invalidItems?.[user?.id] || []).map((item, index) => (
-                      <div key={index} className="bg-orange-50 border border-orange-100 rounded-4xl p-3 text-gray-700">
-                        {item}
-                      </div>
-                    ))}
-                    {(!gameState?.invalidItems?.[user?.id] || gameState.invalidItems[user.id].length === 0) && (
-                      <div className="bg-orange-50 border border-orange-100 rounded-4xl p-4 text-center text-gray-500">
-                        No invalid items
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -945,7 +1021,7 @@ function LobbyPageContent() {
                     className="glass-button-accent px-6 py-4 text-white font-semibold rounded-4xl hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
                   >
                     <RotateCcw className="w-5 h-5" />
-                    <span>Play Again (Same Category)</span>
+                    <span>Play New Game (Same Category)</span>
                   </button>
                   <button
                     onClick={handleBackToCategories}

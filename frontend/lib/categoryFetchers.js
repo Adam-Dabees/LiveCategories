@@ -232,13 +232,52 @@ export async function validateFruit(fruitName) {
       }
     }
     
-    console.log(`❌ Fruit "${fruitName}" not found in Fruityvice database`);
-    return false;
+    console.log(`❌ Fruit "${fruitName}" not found in Fruityvice database, trying fallback`);
+    return fallbackFruitValidation(fruitName);
     
   } catch (error) {
     console.error('Error validating fruit with API:', error);
+    return fallbackFruitValidation(fruitName);
+  }
+}
+
+// Fallback validation for fruits when API fails
+function fallbackFruitValidation(fruitName) {
+  console.log(`⚠️ Using fallback validation for fruit "${fruitName}"`);
+  
+  const cleanName = fruitName.trim().toLowerCase();
+  
+  // Must be at least 3 characters
+  if (cleanName.length < 3) {
     return false;
   }
+  
+  // Check against a curated list of common fruits
+  const commonFruits = [
+    'apple', 'banana', 'orange', 'grape', 'strawberry', 'blueberry', 'cherry',
+    'peach', 'pear', 'plum', 'mango', 'pineapple', 'watermelon', 'kiwi',
+    'lemon', 'lime', 'grapefruit', 'coconut', 'avocado', 'pomegranate',
+    'papaya', 'guava', 'passion fruit', 'dragonfruit', 'lychee', 'durian',
+    'jackfruit', 'starfruit', 'persimmon', 'fig', 'date', 'apricot',
+    'blackberry', 'raspberry', 'cranberry', 'gooseberry', 'elderberry',
+    'boysenberry', 'mulberry', 'huckleberry', 'loganberry', 'cloudberry',
+    'cantaloupe', 'honeydew', 'casaba', 'crenshaw', 'galia', 'charentais',
+    'rambutan', 'mangosteen', 'longan', 'litchi', 'carambola', 'soursop',
+    'cherimoya', 'custard apple', 'sugar apple', 'sweetsop', 'breadfruit',
+    'plantain', 'tangerine', 'clementine', 'mandarin', 'nectarine',
+    'quince', 'medlar', 'loquat', 'jujube', 'tamarind', 'acai',
+    'goji', 'physalis', 'ground cherry', 'golden berry', 'cape gooseberry'
+  ];
+  
+  const isValid = commonFruits.includes(cleanName);
+  
+  if (isValid) {
+    console.log(`✅ Fruit "${fruitName}" found in fallback list - awarding point`);
+  } else {
+    console.log(`❌ Fruit "${fruitName}" not found in fallback list`);
+  }
+  
+  return isValid;
 }
 
 /**

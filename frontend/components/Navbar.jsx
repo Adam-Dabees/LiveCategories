@@ -155,6 +155,7 @@ export default function Navbar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
             onClick={() => setShowProfile(false)}
           >
@@ -162,7 +163,8 @@ export default function Navbar() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4 fade-in-scale"
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
@@ -170,7 +172,7 @@ export default function Navbar() {
                   <User className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2 font-rubik">
-                  {user?.displayName || user?.email?.split('@')[0]}
+                  {user?.username || user?.displayName || user?.display_name || user?.email?.split('@')[0]}
                 </h3>
                 <p className="text-gray-300 mb-4 font-rubik">{user?.email}</p>
                 <div className="space-y-3">
@@ -210,6 +212,7 @@ export default function Navbar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
             onClick={cancelLeave}
           >
@@ -217,7 +220,8 @@ export default function Navbar() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4 fade-in-scale"
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="glass-card-dark rounded-4xl p-6 max-w-md w-full mx-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">

@@ -174,13 +174,13 @@ export default function HomePage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-14">
-        <div className="glass-card rounded-4xl p-8 fade-in-scale">
+        <div className="glass-card rounded-4xl p-8">
           <div className="flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 glass-button rounded-4xl flex items-center justify-center">
               <Gamepad2 className="w-12 h-12 text-gray-700" />
             </div>
             <p className="text-gray-700 text-lg font-medium">
-              {loading ? 'Creating lobby...' : 'Loading...'}
+              Loading...
             </p>
           </div>
         </div>
@@ -271,7 +271,7 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(category)}
-                className={`glass-card rounded-4xl p-6 cursor-pointer transition-all duration-300 group min-h-[200px] sm:min-h-[240px] flex flex-col justify-between fade-in-scale stagger-${Math.min(index + 1, 6)}`}
+                className={`glass-card rounded-4xl p-6 cursor-pointer transition-all duration-300 group min-h-[200px] sm:min-h-[240px] flex flex-col justify-between`}
               >
                                 <div className="text-center flex-1 flex flex-col justify-between">
                   <motion.div 
@@ -311,13 +311,15 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
           className="fixed inset-0 sm:bg-black sm:bg-opacity-50 flex items-center justify-center z-50"
           onClick={() => setShowLobbyOptions(false)}
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="glass-card-dark rounded-4xl p-8 max-w-md w-full mx-4 fade-in-scale"
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="glass-card-dark rounded-4xl p-8 max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center mb-6">
